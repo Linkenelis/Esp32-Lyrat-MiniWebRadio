@@ -1,0 +1,23 @@
+*SSID	Password	Info
+*Telecom	abcdqwert	Hotspot
+*WLAN-SXBRZ	w19383zzTTzz	myOffice
+*CWLAN	abcdqwert	myHomeRouter
+*Kanzlei	0123Home	home
+network_01	xxxxx	dummy
+network_02	xxxxx	dummy
+network_03	xxxxx	dummy
+network_04	xxxxx	dummy
+network_04	xxxxx	dummy
+		
+		
+* MiniWebRadio will scan all available WiFi Networks		
+* First try is to connect with given credentials in main.cpp		
+* Is this not succesfully MiniWebRadio will scan all available WiFi Networks		
+* then connect with the given entries in the table		
+*		
+* empty lines will be skipped, lines starts with * are ignored		
+* tabs are delimitter, use tabs between columns, no whitespaces		
+* eg.   SSID{TAB}Password{TAB}Info{ENTER}		
+* 		
+		
+  		

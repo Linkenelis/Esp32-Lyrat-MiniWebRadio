@@ -1,0 +1,17 @@
+X	Cy	StationName	StreamURL
+	D	0N 70s	0n-80s.radionetz.de:8000/0n-70s.mp3
+*	D	0N 80s	0n-80s.radionetz.de:8000/0n-80s.mp3 
+*	D	0N 90s	0n-90s.radionetz.de:8000/0n-90s.mp3
+*	D	0N Charts	0n-charts.radionetz.de:8000/0n-charts.mp3
+	D	0N Dance	0n-dance.radionetz.de:8000/0n-dance.mp3
+	D	0N Disco	0n-disco.radionetz.de:8000/0n-disco.mp3
+	D	1000 Oldies	c3.auracast.net:8010/stream
+*	D	Eurodance	www.laut.fm/eurodance
+	D	extra-radio 88.0	radionetz.de:8000/extra-radio.mp3
+	D	Hitradio SKW	edge.audio.3qsdn.com/senderkw-mp3
+	D	MacSlon's Irish Pub Radio	macslons-irish-pub-radio.com/media.asx
+	D	SchottenRadio	rs13.stream24.org:8700
+	GR	Ράδιο Ήλιος|Radio Helios	195.154.217.103:8051/;stream/1
+	RU	НАШЕ Радио|nashemmx	nashe1.hostingradio.ru/nashe-128.mp3
+	RU	Радио Русские Песни|RUSONGS	listen.rusongs.ru/ru-mp3-128
+	BG	Свежа България|Fresh Bulgaria	http://31.13.223.148:8000/fresh.mp3
