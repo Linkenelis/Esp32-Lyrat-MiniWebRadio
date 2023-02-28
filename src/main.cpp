@@ -86,6 +86,12 @@ char timc[20]; //for digital time
 int clocktype=1;
 int previous_sec=100;
 int previous_day=100;
+bool but_done=true;
+bool volbut_done=true;
+bool ButPlay=false;
+bool ButSet=false;
+bool ButVolMin=false;
+bool ButVolPlus=false;
 
 uint8_t nbroftracks=0;
 int previousMillis=0;
@@ -95,6 +101,8 @@ String _audiotrack="";             //track from SD/mp3files/
 String artsong="";
 String connectto="";
 String Title="";
+char packet[255]; //for incoming packet UDP
+char reply[] = "ESP32_Lyrat_Musicplayer received"; //create reply
 
 char _hl_item[11][25]{                          // Title in headline
                 "Internet Radio ",         // "* интернет-радио *"  "ραδιόφωνο Internet"
@@ -119,7 +127,7 @@ enum status{RADIO = 0, RADIOico = 1, RADIOmenue = 2,
 char NTP_pool_name[] = NTP_pool;
 const char* ntpServer = NTP_pool_name;
 
-
+WiFiUDP UDP;
 WebSrv webSrv;
 Preferences pref;
 Preferences stations;
@@ -133,6 +141,7 @@ Ticker ticker;
 //WiFiMulti wifiMulti;
 File audioFile;
 FtpServer ftpSrv;
+BluetoothA2DPSink a2dp_sink;
 /** Task handle of the taskhandler */
 TaskHandle_t audioTaskHandler;
 TaskHandle_t BTTaskHandler;
@@ -146,10 +155,21 @@ portMUX_TYPE timerMux = portMUX_INITIALIZER_UNLOCKED;
 volatile bool screen_touched = false;
 portMUX_TYPE mux = portMUX_INITIALIZER_UNLOCKED;
 
+#define AA_FONT_SMALL 20
+#define AA_FONT_NORMAL 32
+#define AA_FONT_LARGE 42
+#define AA_FONT_XLARGE 50
+#define AA_FONT_XXLARGE 60
+//#define AA_FONT_num22 Arial22
+#define AA_FONT_num50 50       //for file in a .h => array refs, no "" quotes
+#define AA_FONT_num100 60
+int fontLoaded=0;
+
 /** hardware timer to count secs */
-volatile int interruptCounter;  //int(max) = 2.147.483.647; a day = 86400 secs, so over 248.547 days or 680 years
+volatile int interruptCounter;  //msecs; int(max) = 2.147.483.647; a day = 864000 secs, so over 24.854 days or 68 years
 volatile int totalcounter;	//multisecs (long eg. hours)
 volatile int mediumcounter;	//multisecs (medium long eg. minutes)
+volatile int shortcounter;  //sec
 void IRAM_ATTR onTimer() {
   portENTER_CRITICAL_ISR(&timerMux);    //portenter and exit are needed as to block it for other processes
   interruptCounter++;
@@ -159,6 +179,28 @@ void IRAM_ATTR touched() {
     portENTER_CRITICAL(&mux);
     screen_touched=true;
     portEXIT_CRITICAL(&mux);
+}
+/*Button Actions*/
+void REC_but(void){
+    Serial.println("Rec");
+}
+void MODE_but(void){
+     Serial.println("Mode");
+}
+void BOOT_but(void){    //boot = 02; also used in SD. Not very usable
+     Serial.println("Boot");
+}
+void IRAM_ATTR PLAY_but(void){
+     Serial.println("Play");
+}
+void IRAM_ATTR SET_but(void){
+     Serial.println("Set");
+}
+void IRAM_ATTR VOLUP_but(void){
+     Serial.println("Vol+");
+}
+void IRAM_ATTR VOLDWN_but(void){
+     Serial.println("Vol-");
 }
 
 #if TFT_CONTROLLER == 0 || TFT_CONTROLLER == 1
@@ -214,7 +256,7 @@ void IRAM_ATTR touched() {
 #endif //TFT_CONTROLLER == 0 || TFT_CONTROLLER == 1
 
 
-#if TFT_CONTROLLER == 2 || TFT_CONTROLLER == 3
+#if TFT_CONTROLLER == 2 || TFT_CONTROLLER == 3 || TFT_CONTROLLER == 4
     //
     //  Display 480x320
     //  +-------------------------------------------+ _yHeader=0
@@ -248,16 +290,16 @@ void IRAM_ATTR touched() {
     struct w_n {uint16_t x = 135; uint16_t y = 30;  uint16_t w = 345; uint16_t h = 130;} const _winName;
     struct w_e {uint16_t x = 0;   uint16_t y = 30;  uint16_t w = 480; uint16_t h = 130;} const _winFName;
     struct w_b {uint16_t x = 0;   uint16_t y = 160; uint16_t w = 480; uint16_t h = 5;} const _winVolBar;
-    struct w_t {uint16_t x = 0;   uint16_t y = 165; uint16_t w = 480; uint16_t h = 120;} const _winTitle;
+    struct w_t {uint16_t x = 0;   uint16_t y = 165; uint16_t w = 480; uint16_t h = 125;} const _winTitle;
     struct w_f {uint16_t x = 0;   uint16_t y = 290; uint16_t w = 480; uint16_t h = 30; } const _winFooter;
     struct w_m {uint16_t x = 390; uint16_t y = 0;   uint16_t w =  90; uint16_t h = 30; } const _winTime;
     struct w_i {uint16_t x = 0;   uint16_t y = 0;   uint16_t w = 280; uint16_t h = 30; } const _winItem;
     struct w_v {uint16_t x = 210; uint16_t y = 0;   uint16_t w = 90; uint16_t h = 30; } const _winVolume;
-    struct w_a {uint16_t x = 210; uint16_t y = 290; uint16_t w = 270; uint16_t h = 30; } const _winIPaddr;
-    struct w_s {uint16_t x = 0;   uint16_t y = 290; uint16_t w = 100; uint16_t h = 30; } const _winStaNr;
-    struct w_p {uint16_t x = 100; uint16_t y = 290; uint16_t w = 80; uint16_t h = 30; } const _winSleep;
+    struct w_a {uint16_t x = 240; uint16_t y = 295; uint16_t w = 250; uint16_t h = 25; } const _winIPaddr;
+    struct w_s {uint16_t x = 0;   uint16_t y = 295; uint16_t w = 100; uint16_t h = 25; } const _winStaNr;
+    struct w_p {uint16_t x = 140; uint16_t y = 295; uint16_t w = 70; uint16_t h = 25; } const _winSleep;
     //struct w_b {uint16_t x = 0;   uint16_t y = 160; uint16_t w = 480; uint16_t h = 30; } const _winVolBar;
-    struct w_o {uint16_t x = 0;   uint16_t y = 210; uint16_t w =  67; uint16_t h = 96; } const _winButton;  //w was 96, y was 190 but I use small buttons to use up to 7 buttons
+    struct w_o {uint16_t x = 0;   uint16_t y = 210; uint16_t w =  69; uint16_t h = 96; } const _winButton;  //w was 96, y was 190 but I use small buttons to use up to 7 buttons
     uint16_t _alarmdaysXPos[7] = {2, 70, 138, 206, 274, 342, 410};
     uint16_t _alarmtimeXPos[5] = {12, 118, 266, 372, 224}; // last is colon
     uint16_t _sleeptimeXPos[5] = {5, 107, 175, 73 };
@@ -269,7 +311,6 @@ void IRAM_ATTR touched() {
     //TFT tft(TFT_CONTROLLER);
     //
 #endif  // #if TFT_CONTROLLER == 2 || TFT_CONTROLLER == 3
-
 
 //TIME  *********************************************************************************************************
 void get_time(void){
@@ -325,6 +366,83 @@ uint16_t getMinuteOfTheDay(){ // counts at 00:00, from 0...23*60+59
 #endif
 const char* ssid = WIFI_SSID;
 const char* password =  WIFI_PASS;
+
+void UDPsend(const char* msg)   //for "tft.xxx(text,int1,int2,int3,int4,int5,int6,int7)" as 1 char* message
+{
+  UDP.beginPacket(Display, UDP_port);
+  UDP.printf(msg);
+  if(UDP.endPacket()<1){vTaskDelay(50); UDPsend(msg);}
+  vTaskDelay(20);
+}
+void UDPsend(const char* msg, int a, int b, const char* jpg)        //for TJpgDec.etc, x, y, path
+{
+  UDP.beginPacket(Display, UDP_port);
+  // UDP.printf("TJpgDec.drawFsJpg(10,100,/Buttons/Button_Download_Red.jpg");
+  UDP.printf("%s(%d,%d,%s)",msg,a,b,jpg);
+  if(UDP.endPacket()<1){vTaskDelay(100); UDPsend(msg,a,b,jpg);}
+  vTaskDelay(50);
+}
+void UDPsend(const char* msg, int a, int b, int c, int d, int e)  //tft.xxx, 5 ints, char* is created
+{
+  UDP.beginPacket(Display, UDP_port);
+  UDP.printf("%s(%d,%d,%d,%d,%d)",msg,a,b,c,d,e);
+  if(UDP.endPacket()<1){vTaskDelay(50); UDPsend(msg,a,b,c,d,e);}
+  vTaskDelay(20);
+}
+void UDPsend(const char* msg, int a, int b)  //tft.xxx, 2 ints, char* is created
+{
+  UDP.beginPacket(Display, UDP_port);
+  UDP.printf("%s(%d,%d)",msg,a,b);
+  if(UDP.endPacket()<1){vTaskDelay(50); UDPsend(msg, a, b);}
+  vTaskDelay(20);
+}
+void UDPsend(const char* msg, const char* str)  //tft.xxx, const Char* , char* is created
+{
+  UDP.beginPacket(Display, UDP_port);
+  UDP.printf("%s(%s)",msg,str);
+  if(UDP.endPacket()<1){vTaskDelay(50); UDPsend(msg,str);}
+  vTaskDelay(20);
+}
+void UDPsend(const char* msg, const char* str,int a, int b)  //spr.printToSprite(adapted version with x and y), const Char* , char* is created
+{
+  UDP.beginPacket(Display, UDP_port);
+  UDP.printf("%s(%s,%d,%d)",msg,str,a,b);
+  if(UDP.endPacket()<1){vTaskDelay(50); UDPsend(msg, str, a, b);}
+  vTaskDelay(20);
+}
+void UDPsend(const char* msg, String str)  //tft.xxx, const Char* , char* is created
+{
+  UDP.beginPacket(Display, UDP_port);
+  UDP.printf("%s(%s)",msg,str);
+  if(UDP.endPacket()<1){vTaskDelay(50); UDPsend(msg,str);}
+  vTaskDelay(20);
+}
+void UDP_Check(void)
+{
+  int packetSize = UDP.parsePacket();
+  if (packetSize) {
+    // read the packet into packetBufffer
+    int len = UDP.read(packet, 255);
+    if (len > 0) {
+      packet[len] = 0;
+    }
+    Serial.print("Contents:"); Serial.println(packet);
+    String StrPacket= String(packet);
+    if(!StrPacket.startsWith("Received"))  //No reply to a reply
+    {
+      // send a reply, to the IP address and port that sent us the packet we received
+      UDP.beginPacket(UDP.remoteIP(), UDP.remotePort());
+      UDP.printf("Received reply: %s data from %s", reply, UDP.remoteIP().toString());
+      UDP.endPacket();
+      int StrPos=StrPacket.indexOf(")");  // Find and remove last )
+      StrPacket=StrPacket.substring(0, StrPos);
+      StrPos=StrPacket.indexOf(".");
+      String StrCommand=StrPacket.substring(0, StrPos);
+      String rest=StrPacket.substring(StrPos+1,255);
+    }
+  }
+}
+
 
 void BTInit() {
     xTaskCreatePinnedToCore(
@@ -411,12 +529,12 @@ boolean saveStationsToNVS(){
     String X="", Cy="", StationName="", StreamURL="", currentLine="", tmp="";
     uint16_t cnt = 0;
     // StationList
-	if(!SD.exists("/stations.csv")){
+	if(!SD_MMC.exists("/stations.csv")){
 		log_e("SD/stations.csv not found");
 		return false;
 	}
 
-    File file = SD.open("/stations.csv");
+    File file = SD_MMC.open("/stations.csv");
     if(file){  // try to read from SD
         stations.clear();
         currentLine = file.readStringUntil('\n');             // read the headline
@@ -528,6 +646,513 @@ void timer1sec() {
 /***********************************************************************************************************************
 *                                                   D I S P L A Y                                                      *
 ***********************************************************************************************************************/
+inline void clearHeader() {UDPsend("showTime(0)");UDPsend("tft.fillRect",_winHeader.x, _winHeader.y, _winHeader.w, _winHeader.h, TFT_BLACK);}
+inline void clearLogo()   {UDPsend("tft.fillRect",_winLogo.x,   _winLogo.y,   _winLogo.w,   _winLogo.h,   TFT_BLACK);}
+inline void clearStation(){UDPsend("tft.fillRect",_winName.x,   _winName.y,   _winName.w,   _winName.h,   TFT_BLACK);}
+inline void clearFName()  {UDPsend("tft.fillRect",_winFName.x,  _winFName.y,  _winFName.w,  _winFName.h,  TFT_BLACK);}
+inline void clearTitle()  {UDPsend("tft.fillRect",_winTitle.x,  _winTitle.y,  _winTitle.w,  _winTitle.h,  TFT_BLACK);}
+inline void clearFooter() {UDPsend("tft.fillRect",_winFooter.x, _winFooter.y, _winFooter.w, _winFooter.h, TFT_BLACK);}
+inline void clearTime()   {UDPsend("showTime(0)"); UDPsend("tft.fillRect",_winTime.x,   _winTime.y,   _winTime.w,   _winTime.h,   TFT_BLACK);}
+inline void clearItem()   {UDPsend("tft.fillRect",_winItem.x,   _winItem.y,   _winItem.w,   _winTime.h,   TFT_BLACK);}
+inline void clearVolume() {UDPsend("tft.fillRect",_winVolume.x, _winVolume.y, _winVolume.w, _winVolume.h, TFT_BLACK);}
+inline void clearIPaddr() {UDPsend("tft.fillRect",_winIPaddr.x, _winIPaddr.y, _winIPaddr.w, _winIPaddr.h, TFT_BLACK);}
+inline void clearStaNr()  {UDPsend("tft.fillRect",_winStaNr.x,  _winStaNr.y,  _winStaNr.w,  _winStaNr.h,  TFT_BLACK);}
+inline void clearSleep()  {UDPsend("tft.fillRect",_winSleep.x,  _winSleep.y,  _winSleep.w,  _winSleep.h,  TFT_BLACK);}
+inline void clearVolBar() {UDPsend("tft.fillRect",_winVolBar.x, _winVolBar.y, _winVolBar.w, _winVolBar.h, TFT_BLACK);}
+inline void clearMid()    {UDPsend("tft.fillRect",_winFName.x, _winFName.y, _winFName.w, 260, TFT_BLACK);}
+inline void clearAll()    {UDPsend("tft.fillScreen(0)");}                      // y   0...239
+
+inline uint16_t txtlen(String str) {uint16_t len=0; for(int i=0; i<str.length(); i++) if(str[i]<=0xC2) len++; return len;}
+void showHeadlineVolume(uint8_t vol){
+    clearVolume();
+    sprintf(_chbuf, "Vol %02d", vol);
+    if(fontLoaded!=AA_FONT_SMALL)
+    {   
+        UDPsend("tft.loadFont",AA_FONT_SMALL,0);
+        fontLoaded=AA_FONT_SMALL;
+    }
+    UDPsend("tft.setTextColor",TFT_DEEPSKYBLUE, TFT_BLACK);
+    UDPsend("tft.drawString",_chbuf,_winVolume.x + 6, _winVolume.y + AA_FONT_SMALL + 2);
+    //UDPsend("tft.setCursor",_winVolume.x + 6, _winVolume.y + 2);
+    //UDPsend("tft.print",_chbuf);
+    //UDPsend("tft.unloadFont()");
+
+}
+void showHeadlineTime(){
+    /*UDPsend("tft.showTime(0)"); //remote display can show time independently 0 to hide it
+    UDPsend("spr.setTextColor",TFT_GREENYELLOW,TFT_BLACK);
+    //UDPsend("spr.loadFont(20)");
+    
+    if(!_f_rtc) {UDPsend("spr.printToSprite(No Time)",_winTime.x, _winTime.y);} // has rtc the correct time? 
+    //strftime(timc, 12, " %H:%M:%S ", timeinfo);
+    //spr.printToSprite(timc);  //gettime_s
+    UDPsend("spr.printToSprite", gettime_s(),_winTime.x, _winTime.y);
+    UDPsend("spr.unloadFont()");*/
+    UDPsend("tft.showTime(1)");
+}
+void showHeadlineItem(uint8_t idx){
+    if(fontLoaded!=AA_FONT_SMALL)
+    {   
+        UDPsend("tft.loadFont",AA_FONT_SMALL,0);
+        fontLoaded=AA_FONT_SMALL;
+    }
+    UDPsend("tft.setTextColor",TFT_WHITE, TFT_BLACK);
+    //UDPsend("tft.setCursor",_winItem.x , _winItem.y + 2);
+    clearItem();
+    //UDPsend("tft.print",_hl_item[idx]);
+    UDPsend("tft.drawString",_hl_item[idx],_winItem.x , _winItem.y + AA_FONT_SMALL + 2);
+    //UDPsend("tft.unloadFont()");
+}
+void showFooterIPaddr(){
+    char myIP[30] = "myIP:";
+    strcpy(myIP + 5, _myIP);
+    if(fontLoaded!=AA_FONT_SMALL)
+    {   
+        UDPsend("tft.loadFont",AA_FONT_SMALL,0);
+        fontLoaded=AA_FONT_SMALL;
+    }
+    UDPsend("tft.setTextColor",TFT_GREENYELLOW, TFT_BLACK);
+    clearIPaddr();
+    //UDPsend("tft.setCursor",_winIPaddr.x + 6 , _winIPaddr.y + 2);
+    //UDPsend("tft.print",myIP);
+    UDPsend("tft.drawString",myIP,_winIPaddr.x + 26 , _winIPaddr.y + AA_FONT_SMALL + 2);
+    //UDPsend("tft.unloadFont()");
+}
+void showFooterStaNr(){
+    clearStaNr();
+    if(fontLoaded!=AA_FONT_SMALL)
+    {   
+        UDPsend("tft.loadFont",AA_FONT_SMALL,0);
+        fontLoaded=AA_FONT_SMALL;
+    }
+    //UDPsend("tft.setCursor",_winStaNr.x + 6 , _winStaNr.y + 2);
+    UDPsend("tft.setTextColor",TFT_LAVENDER, TFT_BLACK);
+    sprintf(_chbuf, "STA: %03d", _cur_station);
+    //UDPsend("tft.print",_chbuf);
+    UDPsend("tft.drawString", _chbuf, _winStaNr.x + 6 , _winStaNr.y + AA_FONT_SMALL + 2);
+    //UDPsend("tft.unloadFont()");
+}
+void updateSleepTime(boolean noDecrement){  // decrement and show new value in footer
+    if(_f_sleeping) return;
+    boolean sleep = false;
+    if(_sleeptime == 1) sleep = true;
+    if(_sleeptime > 0 && !noDecrement) _sleeptime--;
+    if(_state != ALARM){
+        char Slt[15];
+        sprintf(Slt,"S  %d:%02d", _sleeptime / 60, _sleeptime % 60);
+        if(fontLoaded!=AA_FONT_SMALL)
+        {   
+            UDPsend("tft.loadFont",AA_FONT_SMALL,0);
+            fontLoaded=AA_FONT_SMALL;
+        }
+        if(!_sleeptime) UDPsend("tft.setTextColor",TFT_DEEPSKYBLUE, TFT_BLACK);
+        else UDPsend("tft.setTextColor",TFT_RED, TFT_BLACK);
+        clearSleep();
+        //UDPsend("tft.setCursor",_winSleep.x + 25 , _winSleep.y + 2);
+        //UDPsend("tft.print",Slt);
+        UDPsend("tft.drawString",Slt, _winSleep.x + 25 , _winSleep.y +AA_FONT_SMALL + 2);
+    }
+    if(sleep){ // fall asleep
+        stopSong();
+        clearAll();
+        UDPsend("setTFTbrightness(0)");
+        _f_sleeping = true;
+        SerialPrintfln("falling asleep");
+    }
+    //UDPsend("tft.unloadFont()");
+}
+void showVolumeBar(){   //Mostly visible and touch
+    uint16_t vol = 480 * _cur_volume/21;
+    UDPsend("tft.fillRect",_winVolBar.x, _winVolBar.y, vol, 8, TFT_RED);
+    UDPsend("tft.fillRect",vol+1, _winVolBar.y, 480-vol+1, 8, TFT_GREEN);
+}
+void showFooter(){  // stationnumber, sleeptime, IPaddress
+    showFooterStaNr();
+    vTaskDelay(10);
+    updateSleepTime();
+    vTaskDelay(10);
+    showFooterIPaddr();
+}
+void display_info(const char *str, int xPos, int yPos, uint16_t color, uint16_t indent, uint16_t winHeight){
+    UDPsend("tft.fillRect",xPos, yPos, 480 - xPos, winHeight, TFT_BLACK);  // Clear the space for new info
+    UDPsend("tft.setTextColor",color, TFT_BLACK);                                // Set the requested color
+    UDPsend("tft.setCursor",xPos + indent, yPos);                            // Prepare to show the info
+    UDPsend("tft.print",str);
+}
+void showStreamTitle(){
+
+    String ST = _streamTitle;
+    Serial.println("streamtitle=" + ST);
+    String ST2="";
+    ST.trim();  // remove all leading or trailing whitespaces
+    //if(ST.length() == 0 && _icydescription.length() != 0) ST = _icydescription;
+    webSrv.send("streamtitle=" + ST);
+    ST.replace(" | ", "\n");   // some stations use pipe as \n or
+    ST.replace("| ", "\n");    // or
+    ST.replace("|", "\n");
+    Serial.println("adjusted streamtitle=" + ST);
+    if (ST.indexOf( " - ")>1){
+        ST2=ST.substring(ST.indexOf( " - ")+3); //usualy the song
+        ST=ST.substring(0, ST.indexOf( " - ")); //usualy the artist
+        Serial.println("artist=" + ST);
+        Serial.println("song=" + ST2);
+    }
+    int font;
+    if (ST.length()<=20 || ST2.length()<=20) {font=AA_FONT_LARGE;}
+    if (ST.length()>20 || ST2.length()>20) {font=AA_FONT_NORMAL;}
+    if (ST.length()>50 || ST2.length()>50) {font=AA_FONT_SMALL;}
+    if(fontLoaded!=font)
+    {   
+        UDPsend("tft.loadFont",font,0);
+        fontLoaded=font;
+    }
+    UDPsend("tft.setTextColor",TFT_HOTPINK, TFT_BLACK);
+    UDPsend("tft.fillRect",_winTitle.x, _winTitle.y, 480 - _winTitle.x, _winTitle.h, TFT_BLACK);  // Clear the space for new info
+    if (ST2==""){
+        UDPsend("tft.drawString", ST.c_str(), 0, _winTitle.y + 45 + fontLoaded);
+    } else{
+        UDPsend("tft.drawString", ST.c_str(), 0, _winTitle.y + 20 + fontLoaded);
+        UDPsend("tft.setTextColor",TFT_CYAN, TFT_BLACK);
+        UDPsend("tft.drawString", ST2.c_str(), 0, _winTitle.y + 20 + fontLoaded + fontLoaded);
+    }
+
+
+    //UDPsend("tft.println",ST.c_str());
+    //UDPsend("tft.setTextColor",TFT_CYAN, TFT_BLACK);
+    //UDPsend("tft.print",ST2.c_str());
+    //UDPsend("tft.unloadFont()");
+
+}
+void showLogoAndStationName()
+{
+    String  SN_utf8 = "";
+    String  SN_ascii = "";
+    String SN="";
+    String SN2="";
+    if(_cur_station){
+        SN_utf8  = _stationName_nvs;
+        SN_ascii = _stationName_nvs;
+    }
+    else{
+        SN_utf8  = _stationName_air;
+        SN_ascii = _stationName_air;
+    }
+    int16_t idx = SN_ascii.indexOf('|');
+    if(idx>0){
+        SN_ascii = SN_ascii.substring(idx + 1); // before pipe
+        SN_utf8 = SN_utf8.substring(0, idx);
+    }
+    SN_ascii.trim();
+    SN_utf8.trim();    
+    if (SN_utf8.indexOf( " - ")>1){
+        SN2=SN_utf8.substring(SN_utf8.indexOf( " - ")+3); //2nd part
+        SN=SN_utf8.substring(0, SN_utf8.indexOf( " - ")); //1rst part
+    } else{     //if no " - ", then split at first space
+        SN=SN_utf8.substring(0, SN_utf8.indexOf(" "));    //This is first (or only part)
+        if(SN_utf8.indexOf( " ")>=1){    //When there is a space
+            SN2=SN_utf8.substring(SN_utf8.indexOf( " ")+1);  //Split at first space, this is second part
+        } else{UDPsend("tft.setCursor",_winName.x, _winName.y+30);}   //When no second line, show a little lower
+    }
+    int font;
+    if (SN.length()<=15 || SN2.length()<=15) {font=AA_FONT_LARGE;}
+    if (SN.length()>15 || SN2.length()>15) {font=AA_FONT_NORMAL;}
+    if (SN.length()>40 || SN2.length()>40) {font=AA_FONT_SMALL;}
+    if(fontLoaded!=font)
+    {   
+        UDPsend("tft.loadFont",font,0);
+        fontLoaded=font;
+    }
+    clearFName();       //clear logo and station Name
+    UDPsend("tft.setTextColor",TFT_WHITE, TFT_BLACK);
+    UDPsend("tft.drawString", SN.c_str(), _winName.x, _winName.y + font + 10);
+    UDPsend("tft.drawString", SN2.c_str(), _winName.x, _winName.y + font + font + 10);
+    String logo = "/logo/m/" + String(UTF8toASCII(SN_ascii.c_str())) +".jpg";
+    Serial.print("logo="); Serial.println(logo);
+    UDPsend("TJpgDec.drawSdJpg",  0, _winName.y, logo.c_str());
+}
+void showFileName(const char* fname){
+
+    if(fontLoaded!=AA_FONT_SMALL)
+    {   
+        UDPsend("tft.loadFont",AA_FONT_SMALL,0);
+        fontLoaded=AA_FONT_SMALL;
+    }
+    UDPsend("tft.fillRect",0, _winTitle.y,   480, 40,   TFT_BLACK);
+    //UDPsend("tft.setCursor",_winTitle.x, _winTitle.y + AA_FONT_SMALL + 10);
+    //UDPsend("tft.setTextColor",TFT_CYAN, TFT_BLACK);
+    UDPsend("tft.drawString", fname, _winTitle.x, _winTitle.y + AA_FONT_SMALL + 10);
+    /*UDPsend("tft.setTextWrap,0"); //let it run of screen
+    UDPsend("tft.print",fname);
+    UDPsend("tft.setTextWrap,1");*/
+
+}
+void showArtistSongAudioFile(){
+    //if(_state==MP3PLAYER || _state==MP3PLAYERico){
+        Serial.print("run showartistsongmp3: "); Serial.print("artsong= ");Serial.println(artsong);
+        String _song=artsong.substring(artsong.indexOf( " - ")+3);
+        String _artist=artsong.substring(0, artsong.indexOf( " - "));
+        Serial.println(_artist);
+        Serial.println(_song);
+        artsong="";
+
+        if (_song.length() <= 15) 
+        {
+            if(fontLoaded!=AA_FONT_LARGE)
+            {   
+                UDPsend("tft.loadFont",AA_FONT_LARGE,0);
+                fontLoaded=AA_FONT_LARGE;
+            }
+        } else {
+            if(fontLoaded!=AA_FONT_NORMAL)
+            {   
+                UDPsend("tft.loadFont",AA_FONT_NORMAL,0);
+                fontLoaded=AA_FONT_NORMAL;
+            }
+        //if (tft.textWidth(ST2) >tft.width()-5) {font=AA_FONT_SMALL; tft.loadFont(AA_FONT_SMALL);}
+        //if (tft.textWidth(ST2) >tft.width()-5) {font=AA_FONT_XSMALL; tft.loadFont(AA_FONT_XSMALL);}
+        
+        clearFName();
+        UDPsend("tft.setTextColor",TFT_HOTPINK, TFT_BLACK);
+        UDPsend("tft.drawString", _artist.c_str(), 0, _winName.y + fontLoaded);
+        //UDPsend("tft.setCursor",0, _winName.y);
+        //UDPsend("tft.println",_artist.c_str());
+        UDPsend("tft.setTextColor",TFT_CYAN, TFT_BLACK);
+        UDPsend("tft.drawString", _song.c_str(), 0, _winName.y + fontLoaded + fontLoaded);
+        //UDPsend("tft.print",_song.c_str());
+
+        //UDPsend("tft.unloadFont()");
+
+    }
+
+}
+void display_time(boolean showall){ //show current time on the TFT Display
+    static String t, oldt = "";
+    static boolean k = false;
+    uint8_t  i = 0, yOffset = 0;
+    uint16_t x, y, space, imgHeigh, imgWidth_l, imgWidth_s;
+    if(TFT_CONTROLLER < 2){
+        x = 0;
+        y = _winFName.y +33;
+        yOffset = 8;
+        space = 2;
+        imgHeigh = 120;
+        imgWidth_s = 24;
+        imgWidth_l = 72;
+    }
+    else{
+        x = 11;
+        y = _winFName.y + 50;
+        yOffset = 0;
+        space = 10; // 10px between jpgs
+        imgHeigh = 160;
+        imgWidth_s = 32;
+        imgWidth_l = 96;
+    }
+    if(showall == true) oldt = "";
+    if((_state == CLOCK) || (_state == CLOCKico)){
+        t = gettime_s();
+        for(i = 0; i < 5; i++) {
+            if(t[i] == ':') {
+                if(k == false) {k = true; t[i] = 'd';} else{t[i] = 'e'; k = false;}}
+            if(t[i] != oldt[i]) {
+                if(TFT_CONTROLLER < 2){
+                    sprintf(_chbuf,"/digits/%cgn.jpg",t[i]);
+                }
+                else{
+                    sprintf(_chbuf,"/digits/%cgn.jpg",t[i]);
+                }
+                //log_i("drawImage %s, x=%i, y=%i", _chbuf, x, y);
+                if(_state == CLOCKico) drawImage(_chbuf, x, _winFName.y);
+                else drawImage(_chbuf, x, y + yOffset);
+            }
+            if((t[i]=='d')||(t[i]=='e'))x += imgWidth_s + space; else x += imgWidth_l + space;
+        }
+        oldt=t;
+    }
+}
+void display_alarmDays(uint8_t ad, boolean showall){ // Sun ad=0, Mon ad=1, Tue ad=2 ....
+    uint8_t i = 0;
+    String str="";
+
+    if(showall){
+        clearHeader();
+    }
+    else{
+        _alarmdays ^= (1 << ad);     // toggle bit
+    }
+
+    for(i=0;i<7;i++){
+        str = "/day/" + String(i);
+        if(_alarmdays & (1 << i))  str+="_rt_en.bmp";    // l<<i instead pow(2,i)
+        else                       str+="_gr_en.bmp";
+        drawImage(str.c_str(), _alarmdaysXPos[i], 0);
+    }
+}
+void display_alarmtime(int8_t xy, int8_t ud, boolean showall){
+    uint16_t j[4] = {5, 77, 173, 245};
+    static int8_t pos, h, m;
+    int8_t updatePos = -1, oldPos = -1;
+    uint8_t corrY = 0;
+    if(TFT_CONTROLLER < 2){
+        corrY = 8;
+    }
+    else {
+        corrY = 3;
+    }
+
+    if(showall){
+        h = _alarmtime / 60;
+        m = _alarmtime % 60;
+    }
+
+    if(ud == 1){
+        if(pos == 0) if(((h / 10) == 1 && (h % 10) < 4) || ((h / 10) == 0))                {h += 10; updatePos = 0;}
+        if(pos == 1) if(((h / 10) == 2 && (h % 10) < 3) || ((h / 10) < 2 && (h % 10) < 9)) {h++;     updatePos = 1;}
+        if(pos == 2) if((m / 10) < 5) {m += 10; updatePos = 2;}
+        if(pos == 3) if((m % 10) < 9) {m++;     updatePos = 3;}
+        _alarmtime = h * 60 + m;
+    }
+    if(ud == -1){
+        if(pos == 0) if((h / 10) > 0) {h -= 10; updatePos = 0;}
+        if(pos == 1) if((h % 10) > 0) {h--;     updatePos = 1;}
+        if(pos == 2) if((m / 10) > 0) {m -= 10; updatePos = 2;}
+        if(pos == 3) if((m % 10) > 0) {m--;     updatePos = 3;}
+        _alarmtime = h * 60 + m;
+    }
+
+    if(xy == 1) {
+        oldPos = pos++;
+        if(pos == 4)pos = 0;
+        updatePos = pos; //pos 0...3 only
+    }
+    if(xy == -1){
+        oldPos = pos--;
+        if(pos ==-1) pos = 3;
+        updatePos = pos;
+    }
+
+    char hhmm[15];
+    sprintf(hhmm,"%d%d%d%d", h / 10, h %10, m /10, m %10);
+
+    if(showall){
+        drawImage("/digits/drt.jpg", _alarmtimeXPos[4], _alarmdays_h + corrY);
+    }
+
+    for(uint8_t i = 0; i < 4; i++){
+        strcpy(_path, "/digits/");
+        strncat(_path, (const char*) hhmm + i, 1);
+        if(showall){
+            if(i == pos) strcat(_path, "or.jpg");   //show orange number
+            else         strcat(_path, "rt.jpg");   //show red numbers
+            drawImage(_path, _alarmtimeXPos[i], _alarmdays_h + corrY);
+        }
+
+        else{
+            if(i == updatePos){
+                strcat(_path, "or.jpg");
+                drawImage(_path, _alarmtimeXPos[i], _alarmdays_h + corrY);
+            }
+            if(i == oldPos){
+                strcat(_path, "rt.jpg");
+                drawImage(_path, _alarmtimeXPos[i], _alarmdays_h + corrY);
+            }
+        }
+    }
+}
+void display_sleeptime(int8_t ud){  // set sleeptimer
+    uint8_t xpos[4] = {5,54,71,120};
+
+    if(ud == 1){
+        switch(_sleeptime){
+            case  0 ...  14:  _sleeptime = (_sleeptime /  5) *  5 +  5; break;
+            case 15 ...  59:  _sleeptime = (_sleeptime / 15) * 15 + 15; break;
+            case 60 ... 359:  _sleeptime = (_sleeptime / 60) * 60 + 60; break;
+            default: _sleeptime = 360; break; // max 6 hours
+        }
+    }
+    if(ud == -1){
+        switch(_sleeptime){
+            case  1 ...  15:  _sleeptime = ((_sleeptime - 1) /  5) *  5; break;
+            case 16 ...  60:  _sleeptime = ((_sleeptime - 1) / 15) * 15; break;
+            case 61 ... 360:  _sleeptime = ((_sleeptime - 1) / 60) * 60; break;
+            default: _sleeptime = 0; break; // min
+        }
+    }
+    char tmp[10];
+    sprintf(tmp, "%d%02d", _sleeptime / 60, _sleeptime % 60);
+    char path[128] = "/digits/";
+
+    for(uint8_t i = 0; i < 4; i ++){
+        strcpy(path, "/digits/");
+        if(i == 3){
+            if(!_sleeptime) strcat(path, "dsgn.jpg");
+            else            strcat(path, "dsrt.jpg");
+        }
+        else{
+            strncat(path, (tmp + i), 1);
+            if(!_sleeptime) strcat(path, "sgn.jpg");
+            else            strcat(path, "srt.jpg");
+        }
+        drawImage(path, _sleeptimeXPos[i], 48);
+    }
+}
+boolean drawImage(const char* path, uint16_t posX, uint16_t posY, uint16_t maxWidth , uint16_t maxHeigth){
+    Serial.print("path="); Serial.println(path);
+    const char* scImg = scaleImage(path);
+    Serial.print("scImg="); Serial.println(scImg);
+    if(SD.exists("/logo/m/0n 70s.jpg")) {Serial.println("Existsss");}
+    if(!SD.exists(scImg)){
+        log_e("file \"%s\" not found", scImg);
+        return false;
+    }
+    if(endsWith(scImg, "bmp")){
+        Serial.println("BMP!!!");
+        return false;   //drawBmp(scImg, posX, posY, maxWidth, maxHeigth);
+    }
+    if(endsWith(scImg, "jpg")){
+        UDPsend("TJpgDec.drawSdJpeg", posX, posY, scImg);
+        return true;
+    }
+    return false; // neither jpg nor bmp
+}
+void setTFTbrightness(uint8_t duty){ //duty 0...100 (min...max)
+    UDPsend("tft.brightness",duty,0);
+    /*ledcAttachPin(TFT_BL, 1);        //Configure variable led, TFT_BL pin to channel 1
+    ledcSetup(1, 12000, 8);          // 12 kHz PWM and 8 bit resolution
+    ledcWrite(1, duty * 2.55);*/
+}
+inline uint32_t getTFTbrightness(){
+    return ledcRead(1);
+}
+inline uint8_t downBrightness(){
+    uint8_t br; br = pref.getUShort("brightness");
+    if(br>5) {
+        br-=5;
+        pref.putUShort("brightness", br);
+        setTFTbrightness(br);
+        showBrightnessBar();
+    } return br;
+}
+inline uint8_t upBrightness(){
+    uint8_t br; br = pref.getUShort("brightness");
+    if(br < 100){
+        br += 5;
+        pref.putUShort("brightness", br);
+        setTFTbrightness(br);
+        showBrightnessBar();
+    }
+    return br;
+}
+inline uint8_t getBrightness(){
+    return pref.getUShort("brightness");
+}
+
+void showBrightnessBar(){
+    uint16_t vol = 480 * getBrightness()/100;
+    //clearVolBar();
+    UDPsend("tft.fillRect",_winVolBar.x, _winVolBar.y, vol, 8, TFT_RED);
+    UDPsend("tft.fillRect",vol+1, _winVolBar.y, 480-vol+1, 8, TFT_GREEN);
+}
 
 /***********************************************************************************************************************
 *                                         L I S T A U D I O F I L E                                                    *
@@ -535,8 +1160,8 @@ void timer1sec() {
 bool setAudioFolder(const char* audioDir){
     Serial.println("setaudiofolder");
     if(audioFile) audioFile.close();  // same as rewind()
-    if(!SD.exists(audioDir)){log_e("%s not exist", audioDir); return false;}
-    audioFile = SD.open(audioDir);
+    if(!SD_MMC.exists(audioDir)){log_e("%s not exist", audioDir); return false;}
+    audioFile = SD_MMC.open(audioDir);
     if(!audioFile.isDirectory()){log_e("%s is not a directory", audioDir); return false;}
     return true;
 }
@@ -556,8 +1181,8 @@ const char* listAudioFile(){
     }
     return NULL;
 }
-
-bool sendAudioList2Web(const char* audioDir){       //cannot do 1000 tracks
+/*
+bool sendAudioList2Web(const char* audioDir){       //cannot do 1000 tracks, this is 1 string of text; Directories?
 Serial.println("sendAudioList2Web");
     if(!setAudioFolder(audioDir)) return false;
     const char* FileName = NULL;
@@ -566,17 +1191,23 @@ Serial.println("sendAudioList2Web");
     while(true){
         FileName = listAudioFile();
         if(FileName){
-            if(i) str += ",";
+            if(i) str += ";";
             str += (String)FileName;
-            i++;    //max25 for now
-            if(i==25) break;
+            i++;    //max35 for now
+            if(i==35) break;
         }
         else break;
     }
-     log_e("%s", str.c_str());
+     log_i("%s", str.c_str());
     webSrv.send((const char*)str.c_str());
     return true;
-}
+}*/
+/*
+bool sendAudioList2Web(const char* audioDir){       //cannot do 1000 tracks
+Serial.println("sendAudioList2Web");
+    send_tracks_to_web();
+    return true;
+}*/
 /***********************************************************************************************************************
 *                                         C O N N E C T   TO   W I F I                                                 *
 ***********************************************************************************************************************/
@@ -585,7 +1216,7 @@ bool connectToWiFi(){
     String s_ssid = "", s_password = "", s_info = "";
     wifiMulti.addAP(_SSID, _PW);                // SSID and PW in code
     WiFi.setHostname("MiniWebRadio");
-    File file = SD.open("/networks.csv"); // try credentials given in "/networks.txt"
+    File file = SD_MMC.open("/networks.csv"); // try credentials given in "/networks.txt"
     if(file){                                         // try to read from SD
         String str = "";
         while(file.available()){
@@ -635,7 +1266,7 @@ void connecttoFS(const char* filename, uint32_t resumeFilePos){
     Serial.print("connecttoFS...");Serial.println(filename);
     Serial.print("_f_isFSConnected1...");Serial.println(_f_isFSConnected);
     _f_isFSConnected = audioConnecttoFS(filename, resumeFilePos);
-    Serial.print("_f_isFSConnected2...");Serial.println(_f_isFSConnected);
+    Serial.print("_f_isFSConnected2...");Serial.println(resumeFilePos);
     _f_isWebConnected = false;
     _audiotrack=filename;
     Serial.print("connecttoFS...");Serial.println(_audiotrack);
@@ -655,7 +1286,31 @@ void setup(){
 
     Serial.begin(115200);
 
-  /*i2s_pin_config_t my_pin_config = {
+/* LyraT_buttons and specials
+#define GPIO_PA_EN    21
+#define SET           32    TP
+#define REC           36    
+#define MODE          39
+#define PLAY          33    TP
+#define VOLUP         27    TP
+#define VOLDWN        13    TP
+#define BOOT          0*/
+    pinMode(12, INPUT); // AUX detect
+    pinMode(19, INPUT); // HP detect
+    pinMode(REC, INPUT); // REC_but detect
+    pinMode(MODE, INPUT); // MODE_but detect
+    pinMode(BOOT, INPUT); // BOOT_but detect
+    pinMode(GPIO_PA_EN, INPUT);  //Amplifier
+
+/*
+    touchAttachInterrupt(PLAY, PLAY_but, 30);
+    touchAttachInterrupt(SET, SET_but, 30);
+    touchAttachInterrupt(VOLUP, VOLUP_but, 30);
+    touchAttachInterrupt(VOLDWN, VOLDWN_but, 30); //Cannot be done with 4 wire sd-card*/
+
+    //{if(digitalRead(REC)==LOW){REC_but();}if(digitalRead(MODE)==LOW){MODE_but();} but_done=true; break;}
+   // pinMode(BOOT, INPUT_PULLUP);
+  i2s_pin_config_t my_pin_config = {
         .bck_io_num = 27,
         .ws_io_num = 26,
         .data_out_num = 25,
@@ -663,41 +1318,44 @@ void setup(){
   };
   a2dp_sink.set_pin_config(my_pin_config);
   a2dp_sink.set_avrc_metadata_callback(avrc_metadata_callback);
-  a2dp_sink.start("BTESP32MusicPlayer");*/
+  a2dp_sink.start("BTESP32MusicPlayer");
     if(TFT_CONTROLLER < 2)  strcpy(_prefix, "/s");
-    else                    strcpy(_prefix, "/m");
-    pinMode(SD_CS, OUTPUT);      digitalWrite(SD_CS, HIGH);
-    //pinMode(VS1053_CS, OUTPUT);  digitalWrite(VS1053_CS, HIGH);
-    //pinMode(TFT_CS, OUTPUT);  digitalWrite(TFT_CS, HIGH);
-    //pinMode(TP_CS, OUTPUT);  digitalWrite(TP_CS, HIGH);
+    else strcpy(_prefix, "/m");
     pref.begin("MiniWebRadio", false);  // instance of preferences for defaults (tone, volume ...)
     stations.begin("Stations", false);  // instance of preferences for stations (name, url ...)
 
     SerialPrintfln("setup: Init SD card");
     SPI.begin(VS1053_SCK, VS1053_MISO, VS1053_MOSI); //SPI forVS1053 and SD
-    SD.end();       // to recognize SD after reset correctly
     Serial.println("setup      : Init SD card");
-    SD.begin(SD_CS);
-    vTaskDelay(100); // wait while SD is ready
-    SD.begin(SD_CS, SPI, 160000000);  // fast SDcard set 80000000 (try 160000000), must have short SPI-wires
- 
-    SerialPrintfln("setup: SD card found");
+    if(!SD_MMC.begin("/sdcard", true)){
+        Serial.println("Card Mount Failed");
+        return;
+    }
+    uint8_t cardType = SD_MMC.cardType();
 
+    if(cardType == CARD_NONE){
+        Serial.println("No SD_MMC card attached");
+        return;
+    }
 
-
-
+    Serial.print("SD_MMC Card Type: ");
+    if(cardType == CARD_MMC){
+        Serial.println("MMC");
+    } else if(cardType == CARD_SD){
+        Serial.println("SDSC");
+    } else if(cardType == CARD_SDHC){
+        Serial.println("SDHC");
+    } else {
+        Serial.println("UNKNOWN");
+    }
+    uint64_t cardSize = SD_MMC.cardSize() / (1024 * 1024);
+    Serial.printf("SD_MMC Card Size: %lluMB\n", cardSize);
     defaultsettings();  // first init
 
-    /*if (!SPIFFS.begin()) {
-    Serial.println("SPIFFS initialisation failed!"); //tft2.println("SPIFFS initialisation failed!");
-    } else{
-    Serial.println("SPIFFS available!");
-    }*/
-
-    if(TFT_CONTROLLER > 3) log_e("The value in TFT_CONTROLLER is invalid");
+    if(TFT_CONTROLLER > 4) log_e("The value in TFT_CONTROLLER is invalid");
 
     SerialPrintfln("setup: seek for stations.csv");
-    File file=SD.open("/stations.csv");
+    File file=SD_MMC.open("/stations.csv");
     if(!file){
 
         log_e("stations.csv not found");
@@ -706,25 +1364,42 @@ void setup(){
     file.close();
     SerialPrintfln("setup: stations.csv found");
     wifi_conn();
-    ftpSrv.begin(SD, FTP_USERNAME, FTP_PASSWORD); //username, password for ftp.
+    ftpSrv.begin(SD_MMC, FTP_USERNAME, FTP_PASSWORD); //username, password for ftp.
     configTime(0, 0, ntpServer); //set in platformIO.ini
     setenv("TZ", Timezone, 1);
     vTaskDelay(2000); 
     get_time(); //get local time
-     SerialPrintfln("setup: init VS1053");
-    //pinMode(VS1053_CS, OUTPUT);  digitalWrite(VS1053_CS, HIGH);
-    //a2dp_sink.app_task_shut_down(); //shutdown BT task
-    /*    i2s_pin_config_t my_pin_config = {
-        .bck_io_num = 27,
-        .ws_io_num = 26,
-        .data_out_num = 25,
-        .data_in_num = I2S_PIN_NO_CHANGE
-    };
-    a2dp_sink.set_pin_config(my_pin_config);*/
- 
-    //a2dp_sink.start("BTESP32MusicPlayer");
+    SerialPrintfln("setup: init VS1053");
+    // Begin listening to UDP port
+    UDP.begin(UDP_port);
+    Serial.print("Listening on UDP port ");
+    Serial.println(UDP_port);
     audioInit();    //run audio to I2C (startup setting)
 
+    if(CLEARLOG){
+        File log;
+        SD_MMC.remove("/log.txt");
+        log = SD_MMC.open("/log.txt", FILE_WRITE); //create a new file
+        log.close();
+    }
+
+    //ir.begin();  // Init InfraredDecoder
+
+    webSrv.begin(80, 81); // HTTP port, WebSocket port
+
+    ticker.attach(1, timer1sec);
+        // some info about the board
+    Serial.println("\n\n##################################");
+    Serial.printf("Internal Total heap %d, internal Free Heap %d\n", ESP.getHeapSize(), ESP.getFreeHeap());
+    Serial.printf("SPIRam Total heap %d, SPIRam Free Heap %d\n", ESP.getPsramSize(), ESP.getFreePsram());
+    Serial.printf("ChipRevision %d, Cpu Freq %d, SDK Version %s\n", ESP.getChipRevision(), ESP.getCpuFreqMHz(), ESP.getSdkVersion());
+    Serial.printf("Flash Size %d, Flash Speed %d\n", ESP.getFlashChipSize(), ESP.getFlashChipSpeed());
+    Serial.println("##################################\n\n");
+    if(psramInit()){
+      Serial.println("\nPSRAM is correctly initialized");
+    }else{
+      Serial.println("PSRAM not available");
+    }
     _sum_stations = stations.getUInt("sumstations", 0);
     SerialPrintfln("Number of saved stations: %d", _sum_stations);
     _cur_station =  pref.getUInt("station", 1);
@@ -743,48 +1418,27 @@ void setup(){
     _alarmdays = pref.getUShort("alarm_weekday");
     _alarmtime = pref.getUInt("alarm_time");
     _state = RADIO;
-
-    if(CLEARLOG){
-        File log;
-        SD.remove("/log.txt");
-        log = SD.open("/log.txt", FILE_WRITE); //create a new file
-        log.close();
-    }
-
-    //ir.begin();  // Init InfraredDecoder
-
-    webSrv.begin(80, 81); // HTTP port, WebSocket port
-    //clearAll(); // Clear screen
-    //showHeadlineItem(RADIO);
-    //showHeadlineVolume(_cur_volume);
+    delay(2000);
+    clearAll(); // Clear screen
+    showHeadlineItem(RADIO);
+    showHeadlineVolume(_cur_volume);
+    delay(100);
     setStation(_cur_station);
     if(DECODER == 0) setTone();    // HW Decoder
     else             setI2STone(); // SW Decoder
-    //showFooter();
-    //showVolumeBar();
-    ticker.attach(1, timer1sec);
-        // some info about the board
-    Serial.println("\n\n##################################");
-    Serial.printf("Internal Total heap %d, internal Free Heap %d\n", ESP.getHeapSize(), ESP.getFreeHeap());
-    Serial.printf("SPIRam Total heap %d, SPIRam Free Heap %d\n", ESP.getPsramSize(), ESP.getFreePsram());
-    Serial.printf("ChipRevision %d, Cpu Freq %d, SDK Version %s\n", ESP.getChipRevision(), ESP.getCpuFreqMHz(), ESP.getSdkVersion());
-    Serial.printf("Flash Size %d, Flash Speed %d\n", ESP.getFlashChipSize(), ESP.getFlashChipSpeed());
-    Serial.println("##################################\n\n");
-    if(psramInit()){
-      Serial.println("\nPSRAM is correctly initialized");
-    }else{
-      Serial.println("PSRAM not available");
-    }
-    //interupts
+    delay(100);
+    showFooter();
+    delay(100);
+    showVolumeBar();
 
   
     timer = timerBegin(0, 80, true); // start at 0; divider for 80 MHz = 80 so we have 1 MHz timer; count up = true; timers are 64 bits
     timerAttachInterrupt(timer, &onTimer, false);   //edge doesn't work propperly on esp32, so false here
-    timerAlarmWrite(timer, 1000000, true); // 1000000 = writes an alarm, that triggers an interupt, every sec with divider 80
+    timerAlarmWrite(timer, 100000, true); // 100000 = writes an alarm, that triggers an interupt, every 0.1 sec with divider 80
     timerAlarmEnable(timer);
         if(LOG){
             File log;
-            log = SD.open("/log.txt", FILE_APPEND);
+            log = SD_MMC.open("/log.txt", FILE_APPEND);
             String str=gettime_s(); str.concat("\tsetup done\t"); str.concat(_state); str.concat("\t"); str.concat(_audiotrack); str.concat("\t"); str.concat(_stationURL); str.concat("\n");  //_stationURL
             log.print(str);
         }
@@ -869,9 +1523,9 @@ inline void setVolume(uint8_t vol){
     pref.putUShort("volume", vol);
     _cur_volume = vol;
     if(_f_mute==false) audioSetVolume(vol);
-    //showHeadlineVolume(vol);
+    showHeadlineVolume(vol);
     if (_state == RADIO || _state == RADIOico || _state == PLAYER){
-        //showVolumeBar();
+        showVolumeBar();
     }   
 }
 uint8_t downvolume(){
@@ -907,10 +1561,10 @@ void setStation(uint16_t sta){
     _stationURL = strdup(content.c_str());
     _homepage = "";
     _icydescription = "";
-    //if(_state != RADIOico) clearTitle();
+    if(_state != RADIOico) clearTitle();
     _cur_station = sta;
     if(!_f_isWebConnected) _streamTitle = "";
-    //showFooterStaNr();
+    showFooterStaNr();
     pref.putUInt("station", sta);
     if(!_f_isWebConnected){
         connecttohost(_stationURL);
@@ -918,7 +1572,7 @@ void setStation(uint16_t sta){
     else{
         if(!strCompare(_stationURL, _lastconnectedhost)) connecttohost(_stationURL);
     }
-    //showLogoAndStationName();
+    showLogoAndStationName();
     StationsItems();
     vTaskDelay(1000);
     setVolume(vol);
@@ -948,7 +1602,7 @@ void savefile(const char* fileName, uint32_t contentLength){ //save the uploadfi
         strcat(fn, _prefix);
         if(!startsWith(fileName, "/")) strcat(fn, "/");
         strcat(fn, fileName);
-        if(webSrv.uploadB64image(SD, UTF8toASCII(fn), contentLength)){
+        if(webSrv.uploadB64image(SD_MMC, UTF8toASCII(fn), contentLength)){
             SerialPrintfln("save image %s to SD card was successfully", fn);
             webSrv.reply("OK");
         }
@@ -962,7 +1616,7 @@ void savefile(const char* fileName, uint32_t contentLength){ //save the uploadfi
         else{
             strcpy(fn, fileName);
         }
-        if(webSrv.uploadfile(SD, UTF8toASCII(fn), contentLength)){
+        if(webSrv.uploadfile(SD_MMC, UTF8toASCII(fn), contentLength)){
             SerialPrintfln("save file %s to SD card was successfully", fn);
             webSrv.reply("OK");
         }
@@ -995,11 +1649,11 @@ void audiotrack(const char* fileName, uint32_t resumeFilePos){
     char* path = (char*)malloc(strlen(fileName) + 20);
     strcpy(path, "/audiofiles/");
     strcat(path, fileName);
-    //clearFName();
-    //showVolumeBar();
-    //showHeadlineVolume(_cur_volume);
-    //showFileName(fileName);
-    //changeState(PLAYER);
+    clearFName();
+    showVolumeBar();
+    showHeadlineVolume(_cur_volume);
+    showFileName(fileName);
+    changeState(PLAYER);
     connecttoFS((const char*) path, resumeFilePos);
     if(_f_isFSConnected){
         free(_lastconnectedfile);
@@ -1007,6 +1661,9 @@ void audiotrack(const char* fileName, uint32_t resumeFilePos){
         _resumeFilePos = 0;
     }
     if(path) free(path);
+    String F = fileName;
+    
+    if(F.endsWith("flac")) {artsong=_lastconnectedfile;}
 }
 void next_track_SD(int tracknbr)
   {
@@ -1015,7 +1672,7 @@ void next_track_SD(int tracknbr)
     String sstr = "";  //Search string
     bool found = false;
     int trcknbr=0;
-    File trcklst = SD.open("/tracklist.txt", FILE_READ); //open file for reading
+    File trcklst = SD_MMC.open("/tracklist.txt", FILE_READ); //open file for reading
     if (nbroftracks<=1){     //get nbr of tracks (only once)
         while (trcklst.available())
         {
@@ -1035,7 +1692,7 @@ void next_track_SD(int tracknbr)
     //get the number and name of that track
     sstr=String(trcknbr)+"\t:";
     Serial.print("Searching for tracknumber ");Serial.println(trcknbr);  // search for /mp3files/tracknumber<space>
-    trcklst = SD.open("/tracklist.txt", FILE_READ); //open file for reading
+    trcklst = SD_MMC.open("/tracklist.txt", FILE_READ); //open file for reading
     while (trcklst.available())
     {
       ch = trcklst.read();
@@ -1073,7 +1730,7 @@ void next_audio_tracknbr_SD(bool prevnext)  //1=next; 0=prev
     int tracknbr=0;
     bool found = false;
     bool find_nbr=false;
-    File trcklst = SD.open("/tracklist.txt", FILE_READ); //open file for reading
+    File trcklst = SD_MMC.open("/tracklist.txt", FILE_READ); //open file for reading
     if (nbroftracks<=1){     //get nbr of tracks (only once)
         while (trcklst.available())
         {
@@ -1090,7 +1747,7 @@ void next_audio_tracknbr_SD(bool prevnext)  //1=next; 0=prev
     sstr=_audiotrack;    //search for current track number
     //get the number and name of that track
     //sstr=String(trcknbr)+"\t:";
-    trcklst = SD.open("/tracklist.txt", FILE_READ); //open file for reading
+    trcklst = SD_MMC.open("/tracklist.txt", FILE_READ); //open file for reading
     while (trcklst.available())
     {
         ch = trcklst.read();
@@ -1188,35 +1845,67 @@ void tracklist(File dir, int numTabs) {
     String str;
     File tracklst;
     if(nbroftracks<1){  //only first time after button push
-        SD.remove("/tracklist.txt");
-        tracklst = SD.open("/tracklist.txt", FILE_WRITE); //create a new file
+        SD_MMC.remove("/tracklist.txt");
+        tracklst = SD_MMC.open("/tracklist.txt", FILE_WRITE); //create a new file
         tracklst.close();
     }
-    tracklst = SD.open("/tracklist.txt", FILE_APPEND);  //Open to add tracks
+    tracklst = SD_MMC.open("/tracklist.txt", FILE_APPEND);  //Open to add tracks
     while (true) {
         File entry =  dir.openNextFile();
         if (! entry) {      // no more files
-        break;
+            break;
         }
-        if (entry.isDirectory()) {  //Directories
-        tracklist(entry, numTabs + 1);
+        if (entry.isDirectory()) {  //Directorie encountered
+            tracklst.close();
+            tracklist(entry, numTabs + 1);  //read the directory
+            tracklst = SD_MMC.open("/tracklist.txt", FILE_APPEND);  //Open and continue for the rest of the root dir
         } else {        //Files; files have sizes, directories do not
-        nbroftracks++;
-        str=String(nbroftracks); str.concat("\t:");str.concat(entry.path());str.concat("\n");
-        Serial.print(str);
-        tracklst.print(str);
+            nbroftracks++;
+            str=String(nbroftracks); str.concat("\t:");str.concat(entry.path());str.concat("\n");
+            Serial.print(str);
+            tracklst.print(str);
         }
         entry.close();
     }
-    str="MP3_data=Number of tracks : "; str.concat(nbroftracks); str.concat("\n"); webSrv.send(str);
+    str="Tracks added = Number of tracks : "; str.concat(nbroftracks); str.concat("\n"); webSrv.send(str);
+    Serial.print(str);
     tracklst.close();
 }
-
+bool send_tracks_to_web(void){  //read tracklist and send is to the webpage
+    int i=0;
+    char ch;
+    String track = "";
+    String webstring="AudioFileList=";
+    File trcklst = SD_MMC.open("/tracklist.txt", FILE_READ); //open file for reading
+    while (trcklst.available())
+    {
+        ch = trcklst.read();
+        if (ch == '\n') //new line'; send the track name and delete track
+        {
+            //log_i("%s", track.c_str());
+            webstring=webstring+track+";";
+            track = "";
+            if(i>35){break;}
+            i++;
+        }
+        if (ch == '\t'){    //now start looking for "\t:" don't add to track nbr
+                ch = trcklst.read();    //this should be ":" after \t
+                if (ch == ':'){ //yes, now we have the tracknbr + '\t:' don't add to tracknumber
+                track="";
+                }
+        }
+        else track += ch;
+        if(track=="/audiofiles/"){track="";} //clear to have name (or path) after /audiofiles/
+    }
+    //log_i("%s", webstring.c_str());
+    webSrv.send((const char*)webstring.c_str());
+    return true;
+}
 
 /***********************************************************************************************************************
 *                                          M E N U E / B U T T O N S                                                   *
 ***********************************************************************************************************************/
-/*void changeState(int state){
+void changeState(int state){
     if(state == _state) return;  //nothing todo
     switch(state) {
         case RADIO:{
@@ -1236,8 +1925,8 @@ void tracklist(File dir, int numTabs) {
 
             }
             else if(_state == SLEEP){
-                //clearFName();
-                //clearTitle();
+                clearFName();
+                clearTitle();
                 connecttohost(_lastconnectedhost);
                 showLogoAndStationName();
                 showFooter();
@@ -1255,34 +1944,33 @@ void tracklist(File dir, int numTabs) {
         }
         case RADIOico:{
             showHeadlineItem(RADIOico);
-            _flashPressBtn[0] = MuteYellow;         _flashRelBtn[0] = _f_mute? MuteRed:MuteGreen;
-            _flashPressBtn[1] = MP3Yellow;          _flashRelBtn[1] = MP3Blue;
-            _flashPressBtn[2] = BTInYellow;         _flashRelBtn[2] = BTInBlue;
-            _flashPressBtn[3] = PreviousYellow;     _flashRelBtn[3] = PreviousGreen;
-            _flashPressBtn[4] = NextYellow;         _flashRelBtn[4] = NextGreen;
-            _flashPressBtn[5] = ClockYellow;        _flashRelBtn[5] = ClockBlue;
-            _flashPressBtn[6] = SettingsYellow;     _flashRelBtn[6] = SettingsGreen;
-            //clearTitle();
-            //showVolumeBar();
-            //showHeadlineVolume(_cur_volume);
-            for(int i = 0; i < 7 ; i++) {TJpgDec.drawJpg(i * _winButton.w, _winButton.y, _flashRelBtn[i], sizeof(AlarmBlue));}  //sizeof doesn't work within an array, just take the largest one for size
+            _pressBtn[0] = "/Buttons/Button_Mute_Yellow.jpg";         _releaseBtn[0] = _f_mute? "/Buttons/Button_Mute_Red.jpg":"/Buttons/Button_Mute_Green.jpg";
+            _pressBtn[1] = "/Buttons/MP3_Yellow.jpg";          _releaseBtn[1] = "/Buttons/MP3_Green.jpg";
+            _pressBtn[2] = "/Buttons/BTinYellow.jpg";         _releaseBtn[2] = "/Buttons/BTinGreen.jpg";
+            _pressBtn[3] = "/Buttons/Button_Previous_Yellow.jpg";     _releaseBtn[3] = "/Buttons/Button_Previous_Green.jpg";
+            _pressBtn[4] = "/Buttons/Button_Next_Yellow.jpg";         _releaseBtn[4] = "/Buttons/Button_Next_Green.jpg";
+            _pressBtn[5] = "/Buttons/Clock_Yellow.jpg";        _releaseBtn[5] = "/Buttons/Clock_Green.jpg";
+            _pressBtn[6] = "/Buttons/Settings_Yellow.jpg";     _releaseBtn[6] = "/Buttons/Settings_ Green.jpg";
+            clearTitle();
+            showVolumeBar();
+            showHeadlineVolume(_cur_volume);
+            for(int i = 0; i < 7 ; i++) {UDPsend("TJpgDec.drawFsJpg",i * _winButton.w, _winButton.y, _releaseBtn[i]);}
             break;
         }
         case RADIOmenue:{
             showHeadlineItem(RADIOmenue);
-            _flashPressBtn[0] = MP3Yellow;  _pressBtn[0] = "/btn/MP3Yellow.jpg";     _flashRelBtn[0] = MP3Blue;
-            _flashPressBtn[1] = ClockYellow;  _pressBtn[1] = "/btn/ClockYellow.jpg";   _flashRelBtn[1] = ClockBlue;
-            _flashPressBtn[2] = RadioYellow;  _pressBtn[2] = "/btn/RadioYellow.jpg";   _flashRelBtn[2] = RadioBlue;
-            _flashPressBtn[3] = SleepYellow;  _pressBtn[3] = "/btn/SleepYellow.jpg";   _flashRelBtn[3] = SleepBlue;
+            _pressBtn[0] = "/Buttons/MP3_Yellow.jpg";            _releaseBtn[0] = "/Buttons/MP3_Green.jpg";
+            _pressBtn[1] = "/Buttons/Clock_Yellow.jpg";          _releaseBtn[1] = "/Buttons/Clock_Green.jpg";
+            _pressBtn[2] = "/Buttons/Radio_Yellow.jpg";          _releaseBtn[2] = "/Buttons/Radio_Greenw.jpg";
+            _pressBtn[3] = "/Buttons/Button_Sleep_Yellow.jpg";   _releaseBtn[3] = "/Buttons/Button_Sleep_Green.jpg";
             if(TFT_CONTROLLER != 2){
-                _flashPressBtn[4] = BrightnessYellow;  _pressBtn[4]="/btn/BrightnessYellow.jpg";       _flashRelBtn[4]=BrightnessBlue;
+                _pressBtn[4]="/Buttons/Bulb_Yellow.jpg";       _releaseBtn[4]="/Buttons/Bulb_Green.jpg";
             }
             else{
-                _flashPressBtn[4] = BtnBlack;  _pressBtn[4]="/btn/Black.jpg";                 _releaseBtn[4]="/btn/Black.jpg";
+                _pressBtn[4]="/Buttons/Black.jpg";                 _releaseBtn[4]="/Buttons/Black.jpg";
             }
-            for(int i = 0; i < 5 ; i++) {TJpgDec.drawJpg(i * _winButton.w, _winButton.y, _flashRelBtn[i], sizeof(RadioBlue));}
-            //for(int i = 0; i < 5 ; i++) {drawImage(_releaseBtn[i], i * _winButton.w, _winButton.y);}
-            //clearVolBar();
+            for(int i = 0; i < 5 ; i++) {UDPsend("TJpgDec.drawFsJpg",i * _winButton.w, _winButton.y, _releaseBtn[i]);}
+            clearVolBar();
             break;
         }
         case CLOCK:{
@@ -1293,11 +1981,11 @@ void tracklist(File dir, int numTabs) {
                 clearHeader();
             }
             _state = CLOCK;
-            //clearAll();
-            //showHeadlineItem(CLOCK);
-            //if(!_f_mute) showHeadlineVolume(_cur_volume); else showHeadlineVolume(0);
-            //showHeadlineTime();
-            //showFooter();
+            clearAll();
+            showHeadlineItem(CLOCK);
+            if(!_f_mute) showHeadlineVolume(_cur_volume); else showHeadlineVolume(0);
+            showHeadlineTime();
+            showFooter();
             switch(clocktype){
                 case 1:{display_time(true);break;}  //7_segment BMP
                 case 2:{display_time(true);break;}  //Big sprite clock
@@ -1307,37 +1995,37 @@ void tracklist(File dir, int numTabs) {
         }
         case CLOCKico:{
             _state = CLOCKico;
-            //showHeadlineItem(CLOCKico);
-            //showHeadlineVolume(_cur_volume);
-            //clearMid();
-            //display_time(true);
-            _flashPressBtn[0] = AlarmYellow;  _pressBtn[0] = "/btn/AlarmYellow.jpg";              _flashRelBtn[0] = AlarmBlue;
-            _flashPressBtn[1] = SleepYellow; _pressBtn[1] = "/btn/SleepYellow.jpg";              _flashRelBtn[1] = SleepBlue;
-            _flashPressBtn[2] = RadioYellow; _pressBtn[2] = "/btn/RadioYellow.jpg";              _flashRelBtn[2] = RadioBlue;
-            _flashPressBtn[3] = MuteYellow; _pressBtn[3] = "/btn/Mute_Red.jpg";                 _flashRelBtn[3] = _f_mute? MuteRed:MuteGreen;
-            _flashPressBtn[4] = VolDownYellow; _pressBtn[4] = "/btn/VolDown_Yellow.jpg";           _flashRelBtn[4] = VolDown_Green;
-            _flashPressBtn[5] = VolUpYellow; _pressBtn[5] = "/btn/VolUp_Yellow.jpg";             _flashRelBtn[5] = VolUp_Green;
-            _flashPressBtn[0] = BtnBlack; _pressBtn[6] = "/btn/Black.jpg";                    _flashRelBtn[6] = BtnBlack; 
+            showHeadlineItem(CLOCKico);
+            showHeadlineVolume(_cur_volume);
+            clearMid();
+            display_time(true);
+            _pressBtn[0] = "/Buttons/Bell_Yellow.jpg";                  _releaseBtn[0] = "/Buttons/Bell_Green.jpg";;
+            _pressBtn[1] = "/Buttons/Button_Sleep_Yellow.jpg";          _releaseBtn[1] = "/Buttons/Button_Sleep_Green.jpg";
+            _pressBtn[2] = "/Buttons/Radio_Yellow.jpg";                 _releaseBtn[2] = "/Buttons/Radio_Green.jpg";
+            _pressBtn[3] = "/Buttons/Button_Mute_Red.jpg";              _releaseBtn[3] = _f_mute? "/Buttons/Button_Mute_Red.jpg":"/Buttons/Button_Mute_Green.jpg";
+            _pressBtn[4] = "/Buttons/Button_Volume_Down_Yellow.jpg";   _releaseBtn[4] = "/Buttons/Button_Volume_Down_Green.jpg";
+            _pressBtn[5] = "/Buttons/Button_Volume_Up_Yellow.jpg";     _releaseBtn[5] = "/Buttons/Button_Volume_Up_Green.jpg";
+            _pressBtn[6] = "/Buttons/Black.jpg";                       _releaseBtn[6] = "/Buttons/Black.jpg"; 
             //for(int i = 0; i < 6 ; i++) {drawImage(_releaseBtn[i], i * _winButton.w, _winButton.y);}
             int s=0;
-            for(int i = 0; i < 7 ; i++) {TJpgDec.drawJpg(i * _winButton.w, _winButton.y, _flashRelBtn[i], sizeof(AlarmBlue));}
+            for(int i = 0; i < 7 ; i++) {UDPsend("TJpgDec.drawFsJpg",i * _winButton.w, _winButton.y, _releaseBtn[i]);}
             break;
         }
         case BRIGHTNESS:{
             showHeadlineItem(BRIGHTNESS);
-            _flashPressBtn[0] = PreviousYellow; _pressBtn[0] = "/btn/Previous_Yellow.jpg";      _flashRelBtn[0] = PreviousGreen;
-            _flashPressBtn[1] = NextYellow; _pressBtn[1] = "/btn/Right_Yellow.jpg";         _flashRelBtn[1] = NextGreen;
-            _flashPressBtn[2] = OKYellow; _pressBtn[2] = "/btn/OKYellow.jpg";             _flashRelBtn[2] = OKGreen;
-            _flashPressBtn[3] = BtnBlack; _pressBtn[3] = "/btn/Black.jpg";                _flashRelBtn[3] = BtnBlack;
-            _flashPressBtn[4] = BtnBlack; _pressBtn[4] = "/btn/Black.jpg";                _flashRelBtn[4] = BtnBlack;
-            _flashPressBtn[5] = BtnBlack; _pressBtn[5] = "/btn/Black.jpg";                _flashRelBtn[5] = BtnBlack;
-            _flashPressBtn[6] = BtnBlack; _pressBtn[6] = "/btn/Black.jpg";                _flashRelBtn[6] = BtnBlack;
+            _pressBtn[0] = "/Buttons/Button_Previous_Yellow.jpg"; _releaseBtn[0] = "/Buttons/Button_Previous_Green.jpg";
+            _pressBtn[1] = "/Buttons/Button_Right_Yellow.jpg";    _releaseBtn[1] = "/Buttons/Button_Right_Green.jpg";
+            _pressBtn[2] = "/Buttons/OK_Yellow.jpg";              _releaseBtn[2] = "/Buttons/OK_Green.jpg";
+            _pressBtn[3] = "/Buttons/Black.jpg";                  _releaseBtn[3] = "/Buttons/Black.jpg";
+            _pressBtn[4] = "/Buttons/Black.jpg";                  _releaseBtn[4] = "/Buttons/Black.jpg";
+            _pressBtn[5] = "/Buttons/Black.jpg";                  _releaseBtn[5] = "/Buttons/Black.jpg";
+            _pressBtn[6] = "/Buttons/Black.jpg";                  _releaseBtn[6] = "/Buttons/Black.jpg";
             clearMid();
             clearFooter();
-            drawImage("/common/Brightness.jpg", 0, _winName.y);
+            UDPsend("TJpgDec.drawSdJpg", 0, _winName.y,"/common/Brightness.jpg");
             showBrightnessBar();
             //for(int i = 0; i < 5 ; i++) {drawImage(_releaseBtn[i], i * _winButton.w, _winButton.y);}drawImage(_releaseBtn[btnNr], btnNr * _winButton.w , _dispHeight - _winButton.h);
-            for(int i = 0; i < 7 ; i++) {TJpgDec.drawJpg(i * _winButton.w, _dispHeight - _winButton.h, _flashRelBtn[i], sizeof(OKGreen));}
+            for(int i = 0; i < 7 ; i++) {UDPsend("TJpgDec.drawFsJpg",i * _winButton.w, _winButton.y, _releaseBtn[i]);}
             break;
         }
         case PLAYER:{
@@ -1346,15 +2034,15 @@ void tracklist(File dir, int numTabs) {
                 clearTitle();
             }
             showHeadlineItem(PLAYER);
-            _flashPressBtn[0] = MuteYellow;        _flashRelBtn[0] = _f_mute? MuteRed:MuteGreen;
-            _flashPressBtn[1] = RadioYellow;       _flashRelBtn[1] = RadioBlue;
-            _flashPressBtn[2] = BTInYellow;        _flashRelBtn[2] = BTInBlue;
-            _flashPressBtn[3] = PreviousYellow;    _flashRelBtn[3] = PreviousGreen;
-            _flashPressBtn[4] = NextYellow;        _flashRelBtn[4] = NextGreen;
-            _flashPressBtn[5] = shuffle?ShuffleYellow:ShuffleGreen;     _flashRelBtn[5] = shuffle?ShuffleYellow:ShuffleGreen;
-            _flashPressBtn[6] = OKYellow;          _flashRelBtn[6] = OKGreen;
+            _pressBtn[0] = "/Buttons/Button_Mute_Yellow.jpg";       _releaseBtn[0] = _f_mute? "/Buttons/Button_Mute_Red.jpg":"/Buttons/Button_Mute_Green.jpg";
+            _pressBtn[1] = "/Buttons/Radio_Yellow.jpg";             _releaseBtn[1] = "/Buttons/Radio_Green.jpg";
+            _pressBtn[2] = "/Buttons/BTinYellow.jpg";               _releaseBtn[2] = "/Buttons/BTinGreen.jpg";
+            _pressBtn[3] = "/Buttons/Button_Previous_Yellow.jpg";   _releaseBtn[3] = "/Buttons/Button_Previous_Green.jpg";
+            _pressBtn[4] = "/Buttons/Button_Next_Yellow.jpg";       _releaseBtn[4] = "/Buttons/Button_Next_Green.jpg";
+            _pressBtn[5] = shuffle?"/Buttons/Shuffle_Yellow.jpg":"/Buttons/Shuffle_Green.jpg";      _releaseBtn[5] = _pressBtn[5];
+            _pressBtn[6] = "/Buttons/OK_Yellow.jpg";                _releaseBtn[6] = "/Buttons/OK_Green.jpg";
             //for(int i = 0; i < 5 ; i++) {drawImage(_releaseBtn[i], i * _winButton.w, _winButton.y);}
-            for(int i = 0; i < 7 ; i++) {TJpgDec.drawJpg(i * _winButton.w, _winButton.y, _flashRelBtn[i], sizeof(BTInBlue));}
+            for(int i = 0; i < 7 ; i++) {UDPsend("TJpgDec.drawFsJpg",i * _winButton.w, _winButton.y, _releaseBtn[i]);}
             clearFName();
             showVolumeBar();
             showHeadlineVolume(_cur_volume);
@@ -1362,87 +2050,89 @@ void tracklist(File dir, int numTabs) {
         }
         case PLAYERico:{
             showHeadlineItem(PLAYERico);
-            _flashPressBtn[0] = MuteYellow; _pressBtn[0] = "/btn/Button_Mute_Red.jpg";         _flashRelBtn[0] = _f_mute? MuteRed:MuteGreen;
-            _flashPressBtn[1] = VolDownYellow; _pressBtn[1] = "/btn/VolDown_Yellow.jpg";          _flashRelBtn[1] = VolDown_Green;
-            _flashPressBtn[2] = VolUpYellow; _pressBtn[2] = "/btn/VolUp_Yellow.jpg";            _flashRelBtn[2] = VolUp_Green;
-            _flashPressBtn[3] = MP3Yellow; _pressBtn[3] = "/btn/MP3Yellow.jpg";               _flashRelBtn[3]=MP3Blue;
-            _flashPressBtn[4] = RadioYellow; _pressBtn[4] = "/btn/RadioYellow.jpg";             _flashRelBtn[4] = RadioBlue;
+            _pressBtn[0] = "/Buttons/Button_Mute_Red.jpg";          _releaseBtn[0] = _f_mute? "/Buttons/Button_Mute_Red.jpg":"/Buttons/Button_Mute_Green.jpg";
+            _pressBtn[1] = "/Buttons/Button_Volume_Down_Yellow.jpg";_releaseBtn[1] = "/Buttons/Button_Volume_Down_Green.jpg";
+            _pressBtn[2] = "/Buttons/Button_Volume_Up_Yellow.jpg";  _releaseBtn[2] = "/Buttons/Button_Volume_Up_Green.jpg";
+            _pressBtn[3] = "/Buttons/MP3_Yellow.jpg";               _releaseBtn[3]="/Buttons/MP3_Green.jpg";
+            _pressBtn[4] = "/Buttons/Radio_Yellow.jpg";             _releaseBtn[4] = "/Buttons/Radio_Green.jpg";
             //for(int i = 0; i < 5 ; i++) {drawImage(_releaseBtn[i], i * _winButton.w, _winButton.y);}
-            for(int i = 0; i < 5 ; i++) {TJpgDec.drawJpg(i * _winButton.w, _winButton.y, _flashRelBtn[i], sizeof(AlarmBlue));}
+            for(int i = 0; i < 5 ; i++) {UDPsend("TJpgDec.drawFsJpg",i * _winButton.w, _winButton.y, _releaseBtn[i]);}
             break;
         }
         case ALARM:{
-            _flashPressBtn[0] = PreviousYellow; _pressBtn[0] = "/btn/Button_Left_Yellow.jpg";    _flashRelBtn[0] = PreviousGreen;
-            _flashPressBtn[1] = NextYellow; _pressBtn[1] = "/btn/Button_Right_Yellow.jpg";   _flashRelBtn[1] = NextGreen;
-            _flashPressBtn[2] = UpYellow; _pressBtn[2] = "/btn/Button_Up_Yellow.jpg";      _flashRelBtn[2] = UpGreen;
-            _flashPressBtn[3] = DownYellow; _pressBtn[3] = "/btn/Button_Down_Yellow.jpg";    _flashRelBtn[3] = DownGreen;
-            _flashPressBtn[4] = OKYellow; _pressBtn[4] = "/btn/Button_Ready_Yellow.jpg";   _flashRelBtn[4] = OKGreen;
+            _pressBtn[0] = "/Buttons/Button_Left_Yellow.jpg";    _releaseBtn[0] = "/Buttons/Button_Previous_Green.jpg";;
+            _pressBtn[1] = "/Buttons/Button_Next_Yellow.jpg";;   _releaseBtn[1] = "/Buttons/Button_Next_Green.jpg";;
+            _pressBtn[2] = "/Buttons/Up_Yellow.jpg";      _releaseBtn[2] = "/Buttons/Up_Green.jpg";
+            _pressBtn[3] = "/Buttons/Down_Yellow.jpg";    _releaseBtn[3] = "/Buttons/Down_Green.jpg";
+            _pressBtn[4] = "/Buttons/Button_Ready_Yellow.jpg";   _releaseBtn[4] = "/Buttons/Button_Ready_Green.jpg";
             clearAll();
             display_alarmtime(0, 0, true);
             display_alarmDays(0, true);
             //for(int i = 0; i < 5 ; i++) {drawImage(_releaseBtn[i], i * _winButton.w,  _dispHeight - _winButton.h);}
-            for(int i = 0; i < 5 ; i++) {TJpgDec.drawJpg(i * _winButton.w, _dispHeight - _winButton.h, _flashRelBtn[i], sizeof(OKGreen));}
+            for(int i = 0; i < 5 ; i++) {UDPsend("TJpgDec.drawFsJpg",i * _winButton.w, _winButton.y, _releaseBtn[i]);}
             break;
         }
         case SLEEP:{
             showHeadlineItem(SLEEP);
-            _flashPressBtn[0] = UpYellow; _pressBtn[0] = "/btn/Up_Yellow.jpg";                 _flashRelBtn[0] = UpGreen;
-            _flashPressBtn[1] = DownYellow; _pressBtn[1] = "/btn/Down_Yellow.jpg";               _flashRelBtn[1] = DownGreen;
-            _flashPressBtn[2] = OKYellow; _pressBtn[2] = "/btn/OKYellow.jpg";                  _flashRelBtn[2] = OKGreen;
-            _flashPressBtn[3] = BtnBlack; _pressBtn[3] = "/btn/Black.jpg";                     _flashRelBtn[3] = BtnBlack;
-            _flashPressBtn[4] = CancelYellow; _pressBtn[4] = "/btn/Button_Cancel_Yellow.jpg";      _flashRelBtn[4] = CancelGreen;
+            _pressBtn[0] = "/Buttons/Up_Yellow.jpg";                 _releaseBtn[0] = "/Buttons/Up_Green.jpg";
+            _pressBtn[1] = "/Buttons/Down_Yellow.jpg";               _releaseBtn[1] = "/Buttons/Down_Green.jpg";;
+            _pressBtn[2] = "/Buttons/OK_Yellow.jpg";                 _releaseBtn[2] = "/Buttons/OK_Green.jpg";
+            _pressBtn[3] = "/Buttons/Black.jpg";                     _releaseBtn[3] = "/Buttons/Black.jpg";
+            _pressBtn[4] = "/Buttons/Cancel_Yellow.jpg";             _releaseBtn[4] = "/Buttons/Cancel_Green.jpg";
             clearMid();
             display_sleeptime();
-            if(TFT_CONTROLLER < 2) drawImage("/common/Night_Gown.bmp", 198, 23);
-            else                   drawImage("/common/Night_Gown.bmp", 280, 30);
+            if(TFT_CONTROLLER < 2) UDPsend("TJpgDec.drawSdJpg", 198, 23,"/common/Night_Gown.bmp");
+            else                   UDPsend("TJpgDec.drawSdJpg", 280, 30, "/common/Night_Gown.bmp");
             //for(int i = 0; i < 5 ; i++) {drawImage(_releaseBtn[i], i * _winButton.w, _winButton.y);}
-            for(int i = 0; i < 5 ; i++) {TJpgDec.drawJpg(i * _winButton.w, _winButton.y, _flashRelBtn[i], sizeof(AlarmBlue));}
+            for(int i = 0; i < 5 ; i++) {UDPsend("TJpgDec.drawFsJpg",i * _winButton.w, _winButton.y, _releaseBtn[i]);}
             break;
         }
         case SETTINGS:{
             showHeadlineItem(SETTINGS);
             //input click is change
-            _flashPressBtn[0] = RadioYellow;                        if(input==1) {_flashRelBtn[0] = RadioBlue;}
-                                                                    else if(input==2) {_flashRelBtn[0]=MP3Blue;}
-                                                                    else if(input==3) {_flashRelBtn[0]=BTInBlue;} 
-            _flashPressBtn[1] = AlarmYellow;                        _flashRelBtn[1]=AlarmBlue;                       
-            _flashPressBtn[2] = SleepYellow;                        _flashRelBtn[2]= SleepBlue;                
+            _pressBtn[0] = "/Buttons/Radio_Yellow.jpg";             if(input==1) {_releaseBtn[0] = "/Buttons/Radio_Green.jpg";}
+                                                                    else if(input==2) {_releaseBtn[0]="/Buttons/MP3_Green.jpg";}
+                                                                    else if(input==3) {_releaseBtn[0]="/Buttons/BTinGreen1.jpg";} 
+            _pressBtn[1] = "/Buttons/Bell_Yellow.jpg";              _releaseBtn[1]="/Buttons/Bell_Green.jpg";                       
+            _pressBtn[2] = "/Buttons/Button_Sleep_Yellow.jpg";      _releaseBtn[2]= "/Buttons/Button_Sleep_Green.jpg";                
             //output, click is change
-            _flashPressBtn[3] = SpeakerOutBlue;                   if(output==1) {_flashRelBtn[3] = SpeakerOutBlue;}
-                                                                    else if(output==2) {_flashRelBtn[3]=BTOutBlue;}           
-            _flashPressBtn[4] = ClockYellow;                        _flashRelBtn[4]=ClockBlue;               
-            _flashPressBtn[5] = BrightnessYellow;                   _flashRelBtn[5]=BrightnessBlue;                     
-            _flashPressBtn[6] = OKYellow;                           _flashRelBtn[6]=OKGreen;                
+            _pressBtn[3] = "/Buttons/Speaker_Out_Blue.jpg";         if(output==1) {_releaseBtn[3] = "/Buttons/Speaker_Out_Blue.jpg";}
+                                                                    else if(output==2) {_releaseBtn[3]="/Buttons/BT_Out_Blue.jpg";}           
+            _pressBtn[4] = "/Buttons/Clock_Yellow.jpg";             _releaseBtn[4]="/Buttons/Clock_Green.jpg";               
+            _pressBtn[5] = "/Buttons/Bulb_Yellow.jpg";              _releaseBtn[5]="/Buttons/Bulb_Green.jpg";                     
+            _pressBtn[6] = "/Buttons/OK_Yellow.jpg";                _releaseBtn[6]="/Buttons/OK_Green.jpg";                
             _state = SETTINGS;
             clearMid();
-            tft.setCursor(5, 40);
-            tft.loadFont(AA_FONT_NORMAL);
-            tft.setTextColor(TFT_WHITE, TFT_BLACK);
-            tft.print("Input: "); 
+            if(fontLoaded!=AA_FONT_SMALL)
+            {   
+                UDPsend("tft.loadFont",AA_FONT_SMALL,0);
+                fontLoaded=AA_FONT_SMALL;
+            }
+            UDPsend("tft.setTextColor(TFT_WHITE, TFT_BLACK)");
+            UDPsend("tft.setCursor(5, 40)");
+            UDPsend("tft.print(Input: )"); 
             switch(input){
-                case 1: {tft.println("Internet Radio"); break;}
-                case 2: {tft.println("SD-card files"); break;}
-                case 3: {tft.println("BT in"); break;}
+                case 1: {UDPsend("tft.println(Internet Radio)"); break;}
+                case 2: {UDPsend("tft.println(SD-card files)"); break;}
+                case 3: {UDPsend("tft.println(BT in)"); break;}
             }
-            tft.print("Output: ");
+            UDPsend("tft.print(Output: )");
             switch(output){
-                case 1: {tft.println("Speaker"); break;}
-                case 2: {tft.println("BT out"); break;}
+                case 1: {UDPsend("tft.println(Speaker)"); break;}
+                case 2: {UDPsend("tft.println(BT out)"); break;}
             }
-            tft.print("Clock type: ");
+            UDPsend("tft.print(Clock type: )");
             switch(clocktype){
-                case 1:{tft.println("Old digi clock"); break;}
-                case 2:{tft.println("Digital clock/date"); break;}
-                case 3:{tft.println("Analog clock"); break;}
+                case 1:{UDPsend("tft.println(Old digi clock)"); break;}
+                case 2:{UDPsend("tft.println(Digital clock/date)"); break;}
+                case 3:{UDPsend("tft.println(Analog clock)"); break;}
             }
-            
-            //for(int i = 0; i < 7 ; i++) {drawImage(_releaseBtn[i], i * _winButton.w, _winButton.y);}
-            for(int i = 0; i < 7 ; i++) {TJpgDec.drawJpg(i * _winButton.w, _winButton.y, _flashRelBtn[i], sizeof(AlarmBlue));}
+            for(int i = 0; i < 7 ; i++) {UDPsend("TJpgDec.drawFsJpg",i * _winButton.w, _winButton.y, _releaseBtn[i]);}
             break;
         }
     }
     _state = state;
-}*/
+}
 /***********************************************************************************************************************
 *                                                      L O O P                                                         *
 ***********************************************************************************************************************/
@@ -1489,16 +2179,37 @@ void DigiClock() //date and time, ip and strength
     //spr.unloadFont();
   
 }
- 
+
 void timer_stuff(void)
 {
-    if (interruptCounter > 0) //run every sec
+    if (interruptCounter > 0) //run every 0.1sec
     {
         portENTER_CRITICAL(&timerMux); //portenter and exit are needed as to block it for other processes
         interruptCounter--;
         portEXIT_CRITICAL(&timerMux);
         totalcounter++;
         mediumcounter++;
+        shortcounter++;     
+    }
+    /*if(!but_done){  //500msec for a button OK?
+        switch (shortcounter){
+            case 1: {if(digitalRead(REC)==LOW){REC_but(); but_done=true;} if(digitalRead(MODE)==LOW){MODE_but(); but_done=true;}} 
+            case 2: {if(touchRead(PLAY)<20){PLAY_but(); but_done=true;} if(touchRead(SET)<20){SET_but(); but_done=true;}volbut_done=false;}
+            case 3: {if(touchRead(VOLUP)<20){VOLUP_but(); but_done=true;} if(touchRead(VOLDWN)<20){VOLDWN_but(); but_done=true;}} 
+            case 5: {but_done=false;}
+            case 6: {if(digitalRead(REC)==LOW){REC_but(); but_done=true;} if(digitalRead(MODE)==LOW){MODE_but(); but_done=true;}} 
+            case 7: {if(touchRead(PLAY)<20){PLAY_but(); but_done=true;} if(touchRead(SET)<20){SET_but(); but_done=true;}volbut_done=false;}
+            case 8: {if(touchRead(VOLUP)<20){VOLUP_but(); but_done=true;} if(touchRead(VOLDWN)<20){VOLDWN_but(); but_done=true;}} 
+
+            default: {break;}
+        }
+    }*/
+
+
+
+    if (shortcounter >=10) {    //1 sec
+        shortcounter=0;
+        but_done=false;
         time(&now);
 	    localtime_r(&now, &timeinfo);
         static uint8_t sec=0;
@@ -1518,7 +2229,7 @@ void timer_stuff(void)
             xSemaphoreGive(mutex_rtc);
             //if(!BTTask_runs && !audioTask_runs){audioInit();}
             //if(_state != ALARM && !_f_sleeping) showHeadlineTime();
-            //if(_state == CLOCK || _state == CLOCKico) display_time();
+            if(_state == CLOCK || _state == CLOCKico) display_time();
             if(_f_eof && (_state == RADIO || _f_eof_alarm)){
                 _f_eof = false;
                 if(_f_eof_alarm){
@@ -1529,9 +2240,12 @@ void timer_stuff(void)
                 }
                 connecttohost(_lastconnectedhost);
             }
-            if(_f_eof && _state == PLAYER){
-                _f_eof = false;
-                next_track_needed(true);
+            if(_state == PLAYER){
+                if(_f_eof && _state == PLAYER){
+                    _f_eof = false;
+                    next_track_needed(true);
+                }
+                webSrv.send("playing_now="+artsong);
             }
             if((_f_mute==false)&&(!_f_sleeping)){
                 if(time_s.endsWith("59:53") && _state == RADIO) { // speech the time 7 sec before a new hour is arrived
@@ -1544,7 +2258,7 @@ void timer_stuff(void)
                 }
             }
             if(_alarmtime == getMinuteOfTheDay()){ //is alarmtime?
-                log_i("is alarmtime");
+                //log_i("is alarmtime");
                 if((_alarmdays>>getweekday())&1){ //is alarmday?
                     if(!_f_semaphore) {_f_alarm = true;  _f_semaphore = true;} //set alarmflag
                 }
@@ -1570,9 +2284,9 @@ void timer_stuff(void)
             wifi_conn();
         }
     }
-    if (mediumcounter > 59) //run every minute
+    if (mediumcounter > 599) //run every minute
     {
-        mediumcounter -= 60;  //back to 0 first, it might go higher again during the program
+        mediumcounter = 0;  //back to 0 first, it might go higher again during the program
         if(!_f_rtc) {   //check every minute when time is not sync
             xSemaphoreTake(mutex_rtc, portMAX_DELAY);
             get_time();
@@ -1582,14 +2296,14 @@ void timer_stuff(void)
         //updateSleepTime();
         if(LOG){
             File log;
-            log = SD.open("/log.txt", FILE_APPEND);
+            log = SD_MMC.open("/log.txt", FILE_APPEND);
             String str=gettime_s(); str.concat("\t"); str.concat(_state); str.concat("\t"); str.concat(_audiotrack); str.concat("\t"); str.concat(_stationURL); str.concat("\n"); 
             log.print(str);
         }
     }
-    if (totalcounter > 3599) //run every hour
+    if (totalcounter > 35999) //run every hour
     {
-        totalcounter -= 3600;
+        totalcounter = 0;
         xSemaphoreTake(mutex_rtc, portMAX_DELAY);
         get_time(); //sync time every hour
         xSemaphoreGive(mutex_rtc);
@@ -1603,6 +2317,7 @@ void loop() {
     //ir.loop();
     ftpSrv.handleFTP();
     timer_stuff();
+
 }
 /***********************************************************************************************************************
 *                                                    E V E N T S                                                       *
@@ -1630,27 +2345,31 @@ void audio_showstation(const char *info){
 void vs1053_showstreamtitle(const char *info){
     if(_f_irNumberSeen) return; // discard streamtitle
     _streamTitle = info;
-    //if(_state == RADIO) showStreamTitle();
+    if(_state == RADIO) showStreamTitle();
     SerialPrintfln("StreamTitle: %s", info);
+    webSrv.send("streamtitle="+_streamTitle);
 }
 void audio_showstreamtitle(const char *info){
     if(_f_irNumberSeen) return; // discard streamtitle
     _streamTitle = info;
-    //if(_state == RADIO) showStreamTitle();
+    if(_state == RADIO) showStreamTitle();
     SerialPrintfln("StreamTitle: %s", info);
+    webSrv.send("streamtitle="+_streamTitle);
 }
 //----------------------------------------------------------------------------------------
 void vs1053_commercial(const char *info){
     _commercial_dur = atoi(info) / 1000;                // info is the duration of advertising in ms
     _streamTitle = "Advertising: " + (String) _commercial_dur + "s";
-    //showStreamTitle();
+    showStreamTitle();
     SerialPrintfln("StreamTitle: %s", info);
+    webSrv.send("streamtitle="+_streamTitle);
 }
 void audio_commercial(const char *info){
     _commercial_dur = atoi(info) / 1000;                // info is the duration of advertising in ms
     _streamTitle = "Advertising: " + (String) _commercial_dur + "s";
-    //showStreamTitle();
+    showStreamTitle();
     SerialPrintfln("StreamTitle: %s", info);
+    webSrv.send("streamtitle="+_streamTitle);
 }
 //----------------------------------------------------------------------------------------
 void vs1053_eof_mp3(const char *info){                  // end of mp3 file (filename)
@@ -1698,7 +2417,8 @@ void vs1053_id3data(const char *info){
     else return;
     if (!artsong.isEmpty() && !Title.isEmpty()) {
         artsong.concat(" - "); artsong.concat(Title); 
-        //showArtistSongAudioFile();
+        showArtistSongAudioFile();
+        webSrv.send("playing_now="+artsong);
     }  
 }
 void audio_id3data(const char *info){
@@ -1709,7 +2429,8 @@ void audio_id3data(const char *info){
     else return;
     if (!artsong.isEmpty() && !Title.isEmpty()) {
         artsong.concat(" - "); artsong.concat(Title); 
-        //showArtistSongAudioFile();
+        showArtistSongAudioFile();
+        webSrv.send("playing_now="+artsong);
     }  
 }
 //----------------------------------------------------------------------------------------
@@ -1717,7 +2438,8 @@ void vs1053_icydescription(const char *info){
     _icydescription = String(info);
     if(_streamTitle.length()==0 && _state == RADIO){
         _streamTitle = String(info);
-        //showStreamTitle();
+        showStreamTitle();
+        webSrv.send("streamtitle="+_streamTitle);
     }
     if(strlen(info)){
         _f_newIcyDescription = true;
@@ -1728,7 +2450,8 @@ void audio_icydescription(const char *info){
     _icydescription = String(info);
     if(_streamTitle.length()==0 && _state == RADIO){
         _streamTitle = String(info);
-        //showStreamTitle();
+        showStreamTitle();
+        webSrv.send("streamtitle="+_streamTitle);
     }
     if(strlen(info)){
         _f_newIcyDescription = true;
@@ -1749,7 +2472,7 @@ void RTIME_info(const char *info){
 void tft_info(const char *info){
     Serial.printf("tft_info   : %s\n", info);
 }
-/*
+
 // Events from IR Library
 void ir_res(uint32_t res){
     _f_irNumberSeen = false;
@@ -1762,66 +2485,29 @@ void ir_res(uint32_t res){
     }
     return;
 }
-void ir_number(const char* num){
-    _f_irNumberSeen = true;
-    if(_state != RADIO) return;
-    /*tft.fillRect(_winName.x, _winName.y, _winName.w , _winName.h + _winTitle.h, TFT_BLACK);
-    tft.setTextSize(7); // tft.setFont(Big_Numbers133x156);
-    tft.setTextColor(TFT_GOLD);
-    tft.setCursor(100, 80);
-    tft.print(num);
-}
-void ir_key(const char* key){
-
-    if(_f_sleeping) {_f_sleeping = false;  changeState(RADIO);} // awake
-
-    switch(key[0]){
-        case 'k':       if(_state == SLEEP) {                           // OK
-                            updateSleepTime(true);
-                            changeState(RADIO);
-                        }
-                        break;
-        case 'r':       upvolume();                                     // right
-                        break;
-        case 'l':       downvolume();                                   // left
-                        break;
-        case 'u':       if(_state==RADIO) nextStation();                // up
-                        if(_state==SLEEP) display_sleeptime(1);
-                        break;
-        case 'd':       if(_state==RADIO) prevStation();                // down
-                        if(_state==SLEEP) display_sleeptime(-1);
-                        break;
-        case '#':       mute();                                         // #
-                        break;
-        case '*':       if(     _state == RADIO) changeState(SLEEP);    // *
-                        else if(_state == SLEEP) changeState(RADIO);
-                        break;
-        default:        break;
-    }
-}
 // Event from TouchPad
-/*void changeBtn_pressed(uint8_t btnNr){
-    if(_state == ALARM || _state == BRIGHTNESS) {TJpgDec.drawJpg(btnNr * _winButton.w, _dispHeight - _winButton.h, _flashPressBtn[btnNr], sizeof(RadioYellow));}//drawImage(_pressBtn[btnNr], btnNr * _winButton.w , _dispHeight - _winButton.h);
-    else                {TJpgDec.drawJpg(btnNr * _winButton.w, _winButton.y, _flashPressBtn[btnNr], sizeof(RadioYellow));}//drawImage(_pressBtn[btnNr], btnNr * _winButton.w , _winButton.y);
+void changeBtn_pressed(uint8_t btnNr){
+    if(_state == ALARM || _state == BRIGHTNESS) {UDPsend("TJpgDec.drawFsJpg",btnNr * _winButton.w, _dispHeight - _winButton.h, _pressBtn[btnNr]);}
+    else                {UDPsend("TJpgDec.drawFsJpg",btnNr * _winButton.w, _winButton.y, _pressBtn[btnNr]);}
 }
 void changeBtn_released(uint8_t btnNr){
     if(_state == RADIOico || _state == PLAYER){
-        if(_f_mute)  _flashRelBtn[0] = MuteRed;
-        else         _flashRelBtn[0] = MuteGreen;
-        if(_BT_In)   _flashRelBtn[2] = BTInYellow;
-        else         _flashRelBtn[2] = BTInBlue;
+        if(_f_mute)  _releaseBtn[0] = "/Buttons/Button_Mute_Red.jpg";
+        else         _releaseBtn[0] = "/Buttons/Button_Next_Green.jpg";
+        if(_BT_In)   _releaseBtn[2] = "/Buttons/BTInYellow.jpg";
+        else         _releaseBtn[2] = "/Buttons/BTInBlue.jpg";
 
     }
     if(_state == PLAYER){
-        if(shuffle)  _flashRelBtn[5] = ShuffleYellow;
-        else         _flashRelBtn[5] = ShuffleGreen;
+        if(shuffle)  _releaseBtn[5] = "/Buttons/Shuffle_Yellow.jpg";
+        else         _releaseBtn[5] = "/Buttons/Shuffle_Green.jpg";
     }
     if(_state == CLOCKico){
-        if(_f_mute)  _flashRelBtn[3] = MuteRed;
-        else         _flashRelBtn[3] = MuteGreen;
+        if(_f_mute)  _releaseBtn[3] = "/Buttons/Button_Mute_Red.jpg";
+        else         _releaseBtn[3] = "/Buttons/Button_Mute_Greenjpg";
     }
-    if(_state == ALARM || _state == BRIGHTNESS) {TJpgDec.drawJpg(btnNr * _winButton.w, _dispHeight - _winButton.h, _flashRelBtn[btnNr], sizeof(RadioYellow));}//drawImage(_releaseBtn[btnNr], btnNr * _winButton.w , _dispHeight - _winButton.h);
-    else                {TJpgDec.drawJpg(btnNr * _winButton.w, _winButton.y, _flashRelBtn[btnNr], sizeof(RadioYellow));}//drawImage(_releaseBtn[btnNr], btnNr * _winButton.w , _winButton.y);
+    if(_state == ALARM || _state == BRIGHTNESS) {UDPsend("TJpgDec.drawFsJpg",btnNr * _winButton.w, _dispHeight - _winButton.h, _releaseBtn[btnNr]);}
+    else                {UDPsend("TJpgDec.drawFsJpg",btnNr * _winButton.w, _winButton.y, _releaseBtn[btnNr]);}
 }
 void tp_pressed(uint16_t x, uint16_t y){
     log_i("tp_pressed, state is: %i", _state);
@@ -1964,7 +2650,7 @@ void tp_released(){
     }
 
     switch(_releaseNr){
-         RADIOico ******************************
+        // RADIOico ******************************
         case  0:    changeBtn_released(0); break;                                    // Mute
         case  1:    changeState(PLAYER);                                             // Player SD
                     if(setAudioFolder("/audiofiles")) chptr = listAudioFile();
@@ -1976,7 +2662,7 @@ void tp_released(){
         case  5:    changeState(CLOCK); break;  //  
         case  6:    changeState(SETTINGS); break;                                   //  Settings
 
-          Will be removed ***  RADIOmenue ******************************
+        //  Will be removed ***  RADIOmenue ******************************
         case 10:    changeState(PLAYER); webSrv.send("StatePlayer");
                     if(setAudioFolder("/audiofiles")) chptr = listAudioFile();
                     if(chptr) strcpy(_afn, chptr);
@@ -1986,7 +2672,7 @@ void tp_released(){
         case 13:    changeState(SLEEP); break;
         case 14:    changeState(BRIGHTNESS); break;
 
-        / CLOCKico ******************************
+        // CLOCKico ******************************
         case 20:    changeState(ALARM); break;
         case 21:    changeState(SLEEP); break;
         case 22:    changeState(RADIO); webSrv.send("StateRadio");break;
@@ -1994,14 +2680,14 @@ void tp_released(){
         case 24:    changeBtn_released(4); downvolume(); break;
         case 25:    changeBtn_released(5); upvolume();  break;
 
-         ALARM ******************************
+        // ALARM ******************************
         case 30:    changeBtn_released(0); display_alarmtime(-1 ,  0); break;
         case 31:    changeBtn_released(1); display_alarmtime( 1 ,  0); break;
         case 32:    changeBtn_released(2); display_alarmtime( 0 ,  1); break;
         case 33:    changeBtn_released(3); display_alarmtime( 0 , -1); break;
         case 34:    changeState(CLOCK); break;
 
-         AUDIOPLAYER ******************************
+        // AUDIOPLAYER ******************************
         case 40:    changeBtn_released(0); break; //Mute
         case 41:    changeState(RADIO); webSrv.send("StateRadio");break;
         case 42:    changeState(CLOCK); break;      //BTin
@@ -2022,14 +2708,14 @@ void tp_released(){
                         _lastconnectedfile = strdup(path);
                     } break;
 
-        / AUDIOPLAYERico ******************************
+        // AUDIOPLAYERico ******************************
         case 50:    changeBtn_released(0); break; // Mute
         case 51:    changeBtn_released(1); downvolume(); showVolumeBar(); showHeadlineVolume(_cur_volume); break; // Vol-
         case 52:    changeBtn_released(2); upvolume();   showVolumeBar(); showHeadlineVolume(_cur_volume); break; // Vol+
         case 53:    changeState(PLAYER); webSrv.send("StatePlayer");showFileName(_afn); break;
-        case 54:    changeState(RADIO); webSrv.send("StateRadio"); break;*/
+        case 54:    changeState(RADIO); webSrv.send("StateRadio"); break;
 
-        /* ALARM (weekdays) ******************************
+        // ALARM (weekdays) ******************************
         case 60:    display_alarmDays(0); break;
         case 61:    display_alarmDays(1); break;
         case 62:    display_alarmDays(2); break;
@@ -2038,7 +2724,7 @@ void tp_released(){
         case 65:    display_alarmDays(5); break;
         case 66:    display_alarmDays(6); break;
 
-        / SLEEP ******************************************
+        // SLEEP ******************************************
         case 70:    display_sleeptime(1);  changeBtn_released(0); break;
         case 71:    display_sleeptime(-1); changeBtn_released(1); break;
         case 72:    updateSleepTime(true);
@@ -2049,13 +2735,13 @@ void tp_released(){
                     changeBtn_released(4);
                     changeState(RADIO); webSrv.send("StateRadio");break;
 
-        /* BRIGHTNESS ************************************
+        //BRIGHTNESS ************************************
         case 80:    downBrightness(); changeBtn_released(0); break;
         case 81:    upBrightness();   changeBtn_released(1); break;
         case 82:    changeState(RADIO); webSrv.send("StateRadio");break;
 
-        /* SETTINGS ************************************
-        case 90:    if(input == 3){input=1;}else {input++;}  _state=BRIGHTNESS; changeState(SETTINGS);break;
+        // SETTINGS ************************************
+        case 90:    if(input == 3){input=1;} else {input++;}  _state=BRIGHTNESS; changeState(SETTINGS);break;
         case 91:    changeState(ALARM); break;
         case 92:    changeState(SLEEP); break;
         case 93:    if(output == 2){output=1;}else {output++;} _state=BRIGHTNESS; changeState(SETTINGS);break;
@@ -2069,14 +2755,14 @@ void tp_released(){
     }
     _releaseNr = -1;
 }
-*/
+
 //Events from websrv
 void WEBSRV_onCommand(const String cmd, const String param, const String arg){                       // called from html
     //log_i("HTML_cmd=%s params=%s arg=%s", cmd.c_str(),param.c_str(), arg.c_str());
     String  str;
     if(cmd == "homepage"){          webSrv.send("homepage=" + _homepage); return;}
     if(cmd == "to_listen"){         StationsItems(); return;}// via websocket, return the name and number of the current station
-     if(cmd == "gettone"){           if(DECODER) webSrv.reply(setI2STone().c_str()); else webSrv.reply(setTone().c_str()); return;}
+    if(cmd == "gettone"){           if(DECODER) webSrv.reply(setI2STone().c_str()); else webSrv.reply(setTone().c_str()); return;}
     if(cmd == "getmute"){           webSrv.reply(String(int(_f_mute)).c_str()); return;}
     if(cmd == "getstreamtitle"){    webSrv.reply(_streamTitle.c_str());return;}
     if(cmd == "mute"){              mute();Serial.print("main.cpp running on core "); Serial.println(xPortGetCoreID());if(_f_mute) webSrv.reply("Mute on\n");else webSrv.reply("Mute off\n");return;}
@@ -2101,13 +2787,12 @@ void WEBSRV_onCommand(const String cmd, const String param, const String arg){  
     if(cmd == "HighPass"){          pref.putShort("toneHP", (param.toInt()));                           // audioI2S tone
                                     char hp[25] = "Highpass set to "; strcat(hp, param.c_str()); strcat(hp, "dB");
                                     webSrv.reply(hp); setI2STone(); return;}
-    if(cmd == "audiolist"){         sendAudioList2Web("/audiofiles");                                   // via websocket
-                                    return;}
+    if(cmd == "audiolist"){         send_tracks_to_web(); return;}    //sendAudioList2Web("/audiofiles") //via websocket
     if(cmd == "audiotrack"){        audiotrack(param.c_str()); webSrv.reply("OK\n"); return;}
-    if(cmd == "audiotrackall")      {mp3playall=true; _f_eof=true; next_track_needed(true);  str="Playing track: "; str.concat(_audiotrack.substring(_audiotrack.lastIndexOf("/") + 1)); str.concat("\n");webSrv.reply(str); return;}
-    if(cmd == "next_track")         {mp3playall=true; _f_eof=true; next_track_needed(true);  str="Playing track: "; str.concat(_audiotrack.substring(_audiotrack.lastIndexOf("/") + 1)); str.concat("\n");webSrv.reply(str); return;}
-    if(cmd == "prev_track")         {mp3playall=true; _f_eof=true; next_track_needed(false);  str="Playing track: "; str.concat(_audiotrack.substring(_audiotrack.lastIndexOf("/") + 1)); str.concat("\n");webSrv.reply(str); return;}
-    if(cmd == "audiotracknew")      {webSrv.reply("generating new tracklist...\n"); nbroftracks=0;File root = SD.open("/audiofiles");tracklist(root, 0); return;}//tracklist1(SD, "/mp3files", 0);  return;}
+    if(cmd == "audiotrackall")      {mp3playall=true; _f_eof=true; next_track_needed(true); webSrv.reply("OK\n"); return;}
+    if(cmd == "next_track")         {mp3playall=true; _f_eof=true; next_track_needed(true); webSrv.reply("OK\n"); return;}
+    if(cmd == "prev_track")         {mp3playall=true; _f_eof=true; next_track_needed(false); webSrv.reply("OK\n"); return;}
+    if(cmd == "audiotracknew")      {webSrv.reply("generating new tracklist...\n"); nbroftracks=0;File root = SD_MMC.open("/audiofiles");tracklist(root, 0); return;}
     if(cmd == "shuffle")            {if(shuffle) {shuffle=false; webSrv.reply("Shuffle off\n");}else{shuffle=true; webSrv.reply("Shuffle on\n");} /*changeBtn_released(5);*/return;}
     if(cmd == "getshuffle"){        webSrv.reply(String(int(shuffle)).c_str()); return;}
     if(cmd == "uploadfile"){        _filename = param;  return;}
@@ -2124,12 +2809,13 @@ void WEBSRV_onCommand(const String cmd, const String param, const String arg){  
     if(cmd == "index.html"){        webSrv.show(index_html); return;}
     if(cmd == "get_tftSize"){       webSrv.send(_tftSize? "tftSize=m": "tftSize=s"); return;}
     if(cmd == "get_decoder"){       webSrv.send( DECODER? "decoder=s": "decoder=h"); return;}
-    if(cmd == "favicon.ico"){       webSrv.streamfile(SD, "/favicon.ico"); return;}
-    if(cmd.startsWith("SD")){       str = cmd.substring(2); webSrv.streamfile(SD, scaleImage(str.c_str())); return;}
-    if(cmd == "change_state"){      /*changeState(param.toInt());*/ return;}
+    if(cmd == "favicon.ico"){       webSrv.streamfile(SD_MMC, "/favicon.ico"); return;}
+    if(cmd.startsWith("SD")){       str = cmd.substring(2); webSrv.streamfile(SD_MMC, scaleImage(str.c_str())); return;}
+    if(cmd == "change_state"){      changeState(param.toInt()); return;}
     if(cmd == "stop"){              _resumeFilePos = audioStopSong(); webSrv.reply("OK\n"); return;}
     if(cmd == "resumefile"){        if(!_lastconnectedfile) webSrv.reply("nothing to resume\n");
                                     else {audiotrack(_lastconnectedfile, _resumeFilePos); webSrv.reply("OK\n");} return;}
+    //if(cmd == "artsong"){           webSrv.send("playing_now="+artsong);; return;}
     if(cmd == "test"){              sprintf(_chbuf, "free heap: %u, Inbuff filled: %u, Inbuff free: %u\n", ESP.getFreeHeap(), audioInbuffFilled(), audioInbuffFree()); webSrv.reply(_chbuf); return;}
 
     log_e("unknown HTMLcommand %s", cmd.c_str());

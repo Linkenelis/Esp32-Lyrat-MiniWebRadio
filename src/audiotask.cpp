@@ -75,7 +75,7 @@ void audioTask(void *parameter) {
             }
             else if(audioRxTaskMessage.cmd == CONNECTTOFS){
                 audioTxTaskMessage.cmd = CONNECTTOFS;
-                audioTxTaskMessage.ret = vs1053.connecttoFS(SD, audioRxTaskMessage.txt, audioRxTaskMessage.value);
+                audioTxTaskMessage.ret = vs1053.connecttoFS(SD_MMC, audioRxTaskMessage.txt, audioRxTaskMessage.value);
                 xQueueSend(audioGetQueue, &audioTxTaskMessage, portMAX_DELAY);
             }
             else if(audioRxTaskMessage.cmd == GET_VOLUME){
@@ -256,9 +256,9 @@ void audioTask(void *parameter) {
     es.mute(ES8388::ES_MAIN, false);
 
     
-    // Enable amplifier
+    // Disable amplifier, should be enabled when not using headphone
     pinMode(GPIO_PA_EN, OUTPUT);
-    digitalWrite(GPIO_PA_EN, HIGH);
+    digitalWrite(GPIO_PA_EN, LOW);
 
     audio.setVolume(5); // 0...21
     audio.setPinout(I2S_BCLK, I2S_LRC, I2S_DOUT);
@@ -279,7 +279,7 @@ void audioTask(void *parameter) {
             }
             else if(audioRxTaskMessage.cmd == CONNECTTOFS){
                 audioTxTaskMessage.cmd = CONNECTTOFS;
-                audioTxTaskMessage.ret = audio.connecttoFS(SD, audioRxTaskMessage.txt, audioRxTaskMessage.value);
+                audioTxTaskMessage.ret = audio.connecttoFS(SD_MMC, audioRxTaskMessage.txt, audioRxTaskMessage.value);
                 xQueueSend(audioGetQueue, &audioTxTaskMessage, portMAX_DELAY);
             }
             else if(audioRxTaskMessage.cmd == GET_VOLUME){

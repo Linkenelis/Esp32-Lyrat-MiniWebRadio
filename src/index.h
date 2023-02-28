@@ -373,7 +373,7 @@ const char index_html[] PROGMEM = R"=====(
     <img src="SD/png/UpArrowYellow.png"             width="1" height="1" loading="eager" alt="Image 27" />
     <img src="SD/png/DownArrowGreen.png"            width="1" height="1" loading="eager" alt="Image 28" />
     <img src="SD/png/DownArrowYellow.png"           width="1" height="1" loading="eager" alt="Image 29" />
-  <img src="SD/common/MiniWebRadioV2.jpg"         width="1" height="1" loading="eager" alt="Image 30" />
+    <img src="SD/common/MiniWebRadioV2.jpg"         width="1" height="1" loading="eager" alt="Image 30" />
     <img src="SD/png/PlayGreen.png"                 width="1" height="1" loading="eager" alt="Image 31" />
     <img src="SD/png/PlayYellow.png"                width="1" height="1" loading="eager" alt="Image 32" />
     <img src="SD/png/StopGreen.png"                 width="1" height="1" loading="eager" alt="Image 33" />
@@ -860,7 +860,7 @@ function ping() {
     console.log("send ping")
     tm = setTimeout(function () {
       toastr.warning('The connection to the MusicClock is interrupted! Please reload the page!')
-    }, 10000)
+    }, 20000)
   }
 }
 
@@ -922,6 +922,8 @@ function connect() {
                               if(tft_size == 1) showLabel('label-logo-m', val)
                               break
       case "streamtitle":     cmd.value = val
+                              break
+      case "playing_now":     resultstr3.value = val
                               break
       case "homepage":        window.open(val, '_blank') // show the station homepage
                               break
@@ -1762,7 +1764,7 @@ function getAudioFileList(val){
   console.log(val)
   var select = document.getElementById('seltrack')
   select.options.length = 0;
-  var fileNames = val.split(",")
+  var fileNames = val.split(";")
   for (i = -1; i < (fileNames.length); i++) {
     opt = document.createElement('OPTION')
     if(i == -1){
