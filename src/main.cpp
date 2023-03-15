@@ -41,8 +41,8 @@ int8_t         _releaseNr      = -1;
 uint32_t       _resumeFilePos  = 0;
 uint16_t x, y;                  // touch points
 uint8_t         rtc_tries=0;
-uint8_t        input=1;        //1=radio; 2=Player_SD; 4= Player_network?; 8=BT_in
-uint8_t        output=1;       //1=speaker(I2S); 2=BT-out; 4=? 
+int             input=1;        //1=radio; 2=Player_SD; 4= Player_network?; 8=BT_in
+int             output=1;       //1=speaker(I2S); 2=BT-out; 4=? 
 char           _chbuf[512];
 char           _myIP[25];
 char           _afn[256];                // audioFileName
@@ -53,8 +53,6 @@ char*          _lastconnectedhost = nullptr;
 char*          _stationURL = nullptr;
 const char*    _pressBtn[7];
 const char*    _releaseBtn[7];
-const uint8_t* _flashRelBtn[7];
-const uint8_t* _flashPressBtn[7];
 boolean        _f_rtc  = false;             // true if time from ntp is received
 boolean        _f_1sec = false;
 boolean        _f_1min = false;
@@ -83,7 +81,7 @@ String         _icydescription = "";
 boolean         psRAMavail=false;
 String          _mp3Name[1000];
 char timc[20]; //for digital time
-int clocktype=1;
+int clocktype=2;
 int previous_sec=100;
 int previous_day=100;
 bool but_done=true;
@@ -102,7 +100,9 @@ String artsong="";
 String connectto="";
 String Title="";
 char packet[255]; //for incoming packet UDP
-char reply[] = "ESP32_Lyrat_Musicplayer received"; //create reply
+char * packettosend;
+char reply[] = "Received by ESP32_Lyrat_Musicplayer"; //create reply
+int packetnumber=0;
 
 char _hl_item[11][25]{                          // Title in headline
                 "Internet Radio ",         // "* интернет-радио *"  "ραδιόφωνο Internet"
@@ -129,6 +129,7 @@ const char* ntpServer = NTP_pool_name;
 
 WiFiUDP UDP;
 WebSrv webSrv;
+WiFiManager wifiManager;
 Preferences pref;
 Preferences stations;
 RTIME rtc;
@@ -364,58 +365,116 @@ uint16_t getMinuteOfTheDay(){ // counts at 00:00, from 0...23*60+59
     IPAddress gateway(unit_gateway);    //editor might complain, as it is not found in the code
     IPAddress subnet(unit_subnet);
 #endif
-const char* ssid = WIFI_SSID;
-const char* password =  WIFI_PASS;
+//const char* ssid = WIFI_SSID;
+//const char* password =  WIFI_PASS;
 
 void UDPsend(const char* msg)   //for "tft.xxx(text,int1,int2,int3,int4,int5,int6,int7)" as 1 char* message
 {
-  UDP.beginPacket(Display, UDP_port);
+  char *NewPacket;
+  //sprintf(NewPacket, "%s()\n", msg);
+  strcpy(NewPacket, msg);
+  strcat(NewPacket, "\n");
+  if(strlen(packettosend)+strlen(NewPacket)>=255)
+  {
+    UDPsendPacket();    //send full packettosend now
+  }
+  sprintf(packettosend, "%s%s", packettosend, NewPacket);
+  /*UDP.beginPacket(Display, UDP_port);
   UDP.printf(msg);
   if(UDP.endPacket()<1){vTaskDelay(50); UDPsend(msg);}
-  vTaskDelay(20);
+  vTaskDelay(20);*/
 }
 void UDPsend(const char* msg, int a, int b, const char* jpg)        //for TJpgDec.etc, x, y, path
 {
-  UDP.beginPacket(Display, UDP_port);
+  char *NewPacket;
+  sprintf(NewPacket, "%s(%d,%d,%s)\n", msg, a, b, jpg);
+  if(strlen(packettosend)+strlen(NewPacket)>=255)
+  {
+    UDPsendPacket();    //send full packettosend now
+  }
+  sprintf(packettosend, "%s%s", packettosend, NewPacket);
+  /*UDP.beginPacket(Display, UDP_port);
   // UDP.printf("TJpgDec.drawFsJpg(10,100,/Buttons/Button_Download_Red.jpg");
   UDP.printf("%s(%d,%d,%s)",msg,a,b,jpg);
   if(UDP.endPacket()<1){vTaskDelay(100); UDPsend(msg,a,b,jpg);}
-  vTaskDelay(50);
+  vTaskDelay(50);*/
 }
 void UDPsend(const char* msg, int a, int b, int c, int d, int e)  //tft.xxx, 5 ints, char* is created
 {
-  UDP.beginPacket(Display, UDP_port);
+  char *NewPacket;
+  sprintf(NewPacket, "%s(%d,%d,%d,%d,%d)\n", msg, a, b, c, d, e);
+  if(strlen(packettosend)+strlen(NewPacket)>=255)
+  {
+    UDPsendPacket();    //send full packettosend now
+  }
+  sprintf(packettosend, "%s%s", packettosend, NewPacket);
+  /*UDP.beginPacket(Display, UDP_port);
   UDP.printf("%s(%d,%d,%d,%d,%d)",msg,a,b,c,d,e);
   if(UDP.endPacket()<1){vTaskDelay(50); UDPsend(msg,a,b,c,d,e);}
-  vTaskDelay(20);
+  vTaskDelay(20);*/
 }
 void UDPsend(const char* msg, int a, int b)  //tft.xxx, 2 ints, char* is created
 {
-  UDP.beginPacket(Display, UDP_port);
+  char *NewPacket;
+  sprintf(NewPacket, "%s(%d,%d)\n", msg, a, b);
+  if(strlen(packettosend)+strlen(NewPacket)>=255)
+  {
+    UDPsendPacket();    //send full packettosend now
+  }
+  sprintf(packettosend, "%s%s", packettosend, NewPacket);
+  /*UDP.beginPacket(Display, UDP_port);
   UDP.printf("%s(%d,%d)",msg,a,b);
   if(UDP.endPacket()<1){vTaskDelay(50); UDPsend(msg, a, b);}
-  vTaskDelay(20);
+  vTaskDelay(20);*/
 }
 void UDPsend(const char* msg, const char* str)  //tft.xxx, const Char* , char* is created
 {
-  UDP.beginPacket(Display, UDP_port);
+  char *NewPacket;
+  sprintf(NewPacket, "%s(%d,%d,%s)\n", msg, str);
+  if(strlen(packettosend)+strlen(NewPacket)>=255)
+  {
+    UDPsendPacket();    //send full packettosend now
+  }
+  sprintf(packettosend, "%s%s", packettosend, NewPacket);
+  /*UDP.beginPacket(Display, UDP_port);
   UDP.printf("%s(%s)",msg,str);
   if(UDP.endPacket()<1){vTaskDelay(50); UDPsend(msg,str);}
-  vTaskDelay(20);
+  vTaskDelay(20);*/
 }
 void UDPsend(const char* msg, const char* str,int a, int b)  //spr.printToSprite(adapted version with x and y), const Char* , char* is created
 {
-  UDP.beginPacket(Display, UDP_port);
+    char *NewPacket;
+  sprintf(NewPacket, "%s(%s,%d,%d)\n", msg, str, a, b);
+  if(strlen(packettosend)+strlen(NewPacket)>=255)
+  {
+    UDPsendPacket();    //send full packettosend now
+  }
+  sprintf(packettosend, "%s%s", packettosend, NewPacket);
+  /*UDP.beginPacket(Display, UDP_port);
   UDP.printf("%s(%s,%d,%d)",msg,str,a,b);
   if(UDP.endPacket()<1){vTaskDelay(50); UDPsend(msg, str, a, b);}
-  vTaskDelay(20);
+  vTaskDelay(20);*/
 }
 void UDPsend(const char* msg, String str)  //tft.xxx, const Char* , char* is created
 {
-  UDP.beginPacket(Display, UDP_port);
+  char *NewPacket;
+  sprintf(NewPacket, "%s(%s)\n", msg, str);
+  if(strlen(packettosend)+strlen(NewPacket)>=255)
+  {
+    UDPsendPacket();    //send full packettosend now
+  }
+  sprintf(packettosend, "%s%s", packettosend, NewPacket);
+  /*UDP.beginPacket(Display, UDP_port);
   UDP.printf("%s(%s)",msg,str);
   if(UDP.endPacket()<1){vTaskDelay(50); UDPsend(msg,str);}
-  vTaskDelay(20);
+  vTaskDelay(20);*/
+}
+void UDPsendPacket()
+{
+UDP.beginPacket(Display, UDP_port);
+  UDP.printf(packettosend);
+  if(UDP.endPacket()<1){vTaskDelay(50); UDPsend(packettosend);}
+  packettosend="";
 }
 void UDP_Check(void)
 {
@@ -430,15 +489,20 @@ void UDP_Check(void)
     String StrPacket= String(packet);
     if(!StrPacket.startsWith("Received"))  //No reply to a reply
     {
-      // send a reply, to the IP address and port that sent us the packet we received
-      UDP.beginPacket(UDP.remoteIP(), UDP.remotePort());
-      UDP.printf("Received reply: %s data from %s", reply, UDP.remoteIP().toString());
-      UDP.endPacket();
-      int StrPos=StrPacket.indexOf(")");  // Find and remove last )
-      StrPacket=StrPacket.substring(0, StrPos);
-      StrPos=StrPacket.indexOf(".");
+      int p[4];
+      int StrPos=StrPacket.indexOf(",");
       String StrCommand=StrPacket.substring(0, StrPos);
       String rest=StrPacket.substring(StrPos+1,255);
+      //if(StrCommand=="pressed"){return;}
+      if(StrCommand=="xy-touched") {for(int i=0; i<3; i++) {StrPos=rest.indexOf(",");   //handle steps to take (tft messages) before acknowledging packetnumber
+        p[i] = rest.substring(0,StrPos).toInt(); rest=rest.substring(StrPos+1,255);} x=p[1]; y=p[2]; tp_pressed(x,y);}
+      if(StrCommand=="Alarm triggered") {for(int i=0; i<3; i++) {StrPos=rest.indexOf(",");
+        p[i] = rest.substring(0,StrPos).toInt(); rest=rest.substring(StrPos+1,255);} _f_alarm=true; }
+        packetnumber=p[0];
+        // send a reply, to the IP address and port that sent us the packet we received
+        UDP.beginPacket(UDP.remoteIP(), UDP.remotePort());
+        UDP.printf("%s data from %s number, %d\n", reply, UDP.remoteIP().toString(), packetnumber);
+        UDP.endPacket();
     }
   }
 }
@@ -462,23 +526,17 @@ void avrc_metadata_callback(uint8_t id, const uint8_t *text) {
 
 void wifi_conn(void)  // Connect the WiFi
 {
-	WiFi.mode(WIFI_STA);
-	WiFi.begin(ssid,password);
-	if (ip_fixed)   //If local_IP has a value, then set WiFi config
-	{
-	WiFi.config(local_IP, gateway, subnet);
-	}
-
-	while (WiFi.status() != WL_CONNECTED)
-	{
-		delay(500);
-		Serial.print(".");
-	}
-
+	wifiManager.setConnectRetries(3);
+    wifiManager.setHostname(HOSTNAME);
+    wifiManager.autoConnect(WiFiAP);
+    Serial.print("WiFi RSSI = ");
+    Serial.println(WiFi.RSSI());
+    Serial.print("WiFi Quality = ");
+    Serial.println(wifiManager.getRSSIasQuality(WiFi.RSSI()));
 	// Print information how to connect
 	IPAddress ip = WiFi.localIP();
-	Serial.print("\nWiFi connected with IP ");
-	Serial.println(ip);
+	//Serial.print("\nWiFi connected with IP ");
+	//Serial.println(ip);
     sprintf(_myIP, "%u.%u.%u.%u", ip[0], ip[1], ip[2], ip[3]);
 }
 
@@ -503,7 +561,7 @@ boolean defaultsettings(){
         pref.putUInt("alarm_time", 0);
         pref.putUShort("ringvolume",21);
         //
-        pref.putUShort("volume",12); // 0...21
+        pref.putUShort("volume",4); // 0...21
         pref.putUShort("mute",   0); // no mute
 
         pref.putUShort("brightness", 100); // 0...100
@@ -646,21 +704,21 @@ void timer1sec() {
 /***********************************************************************************************************************
 *                                                   D I S P L A Y                                                      *
 ***********************************************************************************************************************/
-inline void clearHeader() {UDPsend("showTime(0)");UDPsend("tft.fillRect",_winHeader.x, _winHeader.y, _winHeader.w, _winHeader.h, TFT_BLACK);}
-inline void clearLogo()   {UDPsend("tft.fillRect",_winLogo.x,   _winLogo.y,   _winLogo.w,   _winLogo.h,   TFT_BLACK);}
-inline void clearStation(){UDPsend("tft.fillRect",_winName.x,   _winName.y,   _winName.w,   _winName.h,   TFT_BLACK);}
-inline void clearFName()  {UDPsend("tft.fillRect",_winFName.x,  _winFName.y,  _winFName.w,  _winFName.h,  TFT_BLACK);}
-inline void clearTitle()  {UDPsend("tft.fillRect",_winTitle.x,  _winTitle.y,  _winTitle.w,  _winTitle.h,  TFT_BLACK);}
-inline void clearFooter() {UDPsend("tft.fillRect",_winFooter.x, _winFooter.y, _winFooter.w, _winFooter.h, TFT_BLACK);}
-inline void clearTime()   {UDPsend("showTime(0)"); UDPsend("tft.fillRect",_winTime.x,   _winTime.y,   _winTime.w,   _winTime.h,   TFT_BLACK);}
-inline void clearItem()   {UDPsend("tft.fillRect",_winItem.x,   _winItem.y,   _winItem.w,   _winTime.h,   TFT_BLACK);}
-inline void clearVolume() {UDPsend("tft.fillRect",_winVolume.x, _winVolume.y, _winVolume.w, _winVolume.h, TFT_BLACK);}
-inline void clearIPaddr() {UDPsend("tft.fillRect",_winIPaddr.x, _winIPaddr.y, _winIPaddr.w, _winIPaddr.h, TFT_BLACK);}
-inline void clearStaNr()  {UDPsend("tft.fillRect",_winStaNr.x,  _winStaNr.y,  _winStaNr.w,  _winStaNr.h,  TFT_BLACK);}
-inline void clearSleep()  {UDPsend("tft.fillRect",_winSleep.x,  _winSleep.y,  _winSleep.w,  _winSleep.h,  TFT_BLACK);}
-inline void clearVolBar() {UDPsend("tft.fillRect",_winVolBar.x, _winVolBar.y, _winVolBar.w, _winVolBar.h, TFT_BLACK);}
-inline void clearMid()    {UDPsend("tft.fillRect",_winFName.x, _winFName.y, _winFName.w, 260, TFT_BLACK);}
-inline void clearAll()    {UDPsend("tft.fillScreen(0)");}                      // y   0...239
+inline void clearHeader() {UDP.print("showTime(0)\n");UDP.printf("tft.fillRect(%d,%d,%d,%d,%d)\n",_winHeader.x, _winHeader.y, _winHeader.w, _winHeader.h, TFT_BLACK);}
+inline void clearLogo()   {UDP.printf("tft.fillRect(%d,%d,%d,%d,%d)\n",_winLogo.x,   _winLogo.y,   _winLogo.w,   _winLogo.h,   TFT_BLACK);}
+inline void clearStation(){UDP.printf("tft.fillRect(%d,%d,%d,%d,%d)\n",_winName.x,   _winName.y,   _winName.w,   _winName.h,   TFT_BLACK);}
+inline void clearFName()  {UDP.printf("tft.fillRect(%d,%d,%d,%d,%d)\n",_winFName.x,  _winFName.y,  _winFName.w,  _winFName.h,  TFT_BLACK);}
+inline void clearTitle()  {UDP.printf("tft.fillRect(%d,%d,%d,%d,%d)\n",_winTitle.x,  _winTitle.y,  _winTitle.w,  _winTitle.h,  TFT_BLACK);}
+inline void clearFooter() {UDP.printf("tft.fillRect(%d,%d,%d,%d,%d)\n",_winFooter.x, _winFooter.y, _winFooter.w, _winFooter.h, TFT_BLACK);}
+inline void clearTime()   {UDP.printf("tft.fillRect(%d,%d,%d,%d,%d)\n",_winTime.x,   _winTime.y,   _winTime.w,   _winTime.h,   TFT_BLACK);}
+inline void clearItem()   {UDP.printf("tft.fillRect(%d,%d,%d,%d,%d)\n",_winItem.x,   _winItem.y,   _winItem.w,   _winTime.h,   TFT_BLACK);}
+inline void clearVolume() {UDP.printf("tft.fillRect(%d,%d,%d,%d,%d)\n",_winVolume.x, _winVolume.y, _winVolume.w, _winVolume.h, TFT_BLACK);}
+inline void clearIPaddr() {UDP.printf("tft.fillRect(%d,%d,%d,%d,%d)\n",_winIPaddr.x, _winIPaddr.y, _winIPaddr.w, _winIPaddr.h, TFT_BLACK);}
+inline void clearStaNr()  {UDP.printf("tft.fillRect(%d,%d,%d,%d,%d)\n",_winStaNr.x,  _winStaNr.y,  _winStaNr.w,  _winStaNr.h,  TFT_BLACK);}
+inline void clearSleep()  {UDP.printf("tft.fillRect(%d,%d,%d,%d,%d)\n",_winSleep.x,  _winSleep.y,  _winSleep.w,  _winSleep.h,  TFT_BLACK);}
+inline void clearVolBar() {UDP.printf("tft.fillRect(%d,%d,%d,%d,%d)\n",_winVolBar.x, _winVolBar.y, _winVolBar.w, _winVolBar.h, TFT_BLACK);}
+inline void clearMid()    {UDP.printf("tft.fillRect(%d,%d,%d,%d,%d)\n",_winFName.x, _winFName.y, _winFName.w, 260, TFT_BLACK);}
+inline void clearAll()    {UDP.printf("tft.fillScreen(%d)\n",0);}                      // y   0...239
 
 inline uint16_t txtlen(String str) {uint16_t len=0; for(int i=0; i<str.length(); i++) if(str[i]<=0xC2) len++; return len;}
 void showHeadlineVolume(uint8_t vol){
@@ -668,15 +726,14 @@ void showHeadlineVolume(uint8_t vol){
     sprintf(_chbuf, "Vol %02d", vol);
     if(fontLoaded!=AA_FONT_SMALL)
     {   
-        UDPsend("tft.loadFont",AA_FONT_SMALL,0);
+        UDP.printf("tft.loadFont(%d)\n",AA_FONT_SMALL);
         fontLoaded=AA_FONT_SMALL;
     }
-    UDPsend("tft.setTextColor",TFT_DEEPSKYBLUE, TFT_BLACK);
-    UDPsend("tft.drawString",_chbuf,_winVolume.x + 6, _winVolume.y + AA_FONT_SMALL + 2);
-    //UDPsend("tft.setCursor",_winVolume.x + 6, _winVolume.y + 2);
-    //UDPsend("tft.print",_chbuf);
-    //UDPsend("tft.unloadFont()");
-
+    UDP.printf("tft.setTextColor(%d,%d)\n",TFT_DEEPSKYBLUE, TFT_BLACK);
+    UDP.printf("tft.drawString(%s,%d,%d)\n",_chbuf,_winVolume.x + 6, _winVolume.y + AA_FONT_SMALL + 2);
+    UDP.endPacket();    //close
+    vTaskDelay(50);
+    UDP.beginPacket(Display, UDP_port); //open
 }
 void showHeadlineTime(){
     /*UDPsend("tft.showTime(0)"); //remote display can show time independently 0 to hide it
@@ -688,108 +745,108 @@ void showHeadlineTime(){
     //spr.printToSprite(timc);  //gettime_s
     UDPsend("spr.printToSprite", gettime_s(),_winTime.x, _winTime.y);
     UDPsend("spr.unloadFont()");*/
-    UDPsend("tft.showTime(1)");
 }
 void showHeadlineItem(uint8_t idx){
     if(fontLoaded!=AA_FONT_SMALL)
     {   
-        UDPsend("tft.loadFont",AA_FONT_SMALL,0);
+        UDP.printf("tft.loadFont(%d)\n",AA_FONT_SMALL);
         fontLoaded=AA_FONT_SMALL;
     }
-    UDPsend("tft.setTextColor",TFT_WHITE, TFT_BLACK);
-    //UDPsend("tft.setCursor",_winItem.x , _winItem.y + 2);
+    UDP.printf("tft.setTextColor(%d,%d)\n",TFT_WHITE, TFT_BLACK);
     clearItem();
-    //UDPsend("tft.print",_hl_item[idx]);
-    UDPsend("tft.drawString",_hl_item[idx],_winItem.x , _winItem.y + AA_FONT_SMALL + 2);
-    //UDPsend("tft.unloadFont()");
+    UDP.printf("tft.drawString(%s,%d,%d)\n",_hl_item[idx],_winItem.x , _winItem.y + AA_FONT_SMALL + 2);
+    UDP.endPacket();
+    delay(100);
+    UDP.beginPacket(Display, UDP_port);
 }
 void showFooterIPaddr(){
     char myIP[30] = "myIP:";
     strcpy(myIP + 5, _myIP);
     if(fontLoaded!=AA_FONT_SMALL)
     {   
-        UDPsend("tft.loadFont",AA_FONT_SMALL,0);
+        UDP.printf("tft.loadFont(%d)\n",AA_FONT_SMALL);
         fontLoaded=AA_FONT_SMALL;
     }
-    UDPsend("tft.setTextColor",TFT_GREENYELLOW, TFT_BLACK);
+    UDP.printf("tft.setTextColor(%d,%d)\n",TFT_GREENYELLOW, TFT_BLACK);
     clearIPaddr();
-    //UDPsend("tft.setCursor",_winIPaddr.x + 6 , _winIPaddr.y + 2);
-    //UDPsend("tft.print",myIP);
-    UDPsend("tft.drawString",myIP,_winIPaddr.x + 26 , _winIPaddr.y + AA_FONT_SMALL + 2);
-    //UDPsend("tft.unloadFont()");
+    UDP.printf("tft.drawString(%s,%d,%d)\n",myIP,_winIPaddr.x + 26 , _winIPaddr.y + AA_FONT_SMALL + 2);
+
 }
 void showFooterStaNr(){
     clearStaNr();
     if(fontLoaded!=AA_FONT_SMALL)
     {   
-        UDPsend("tft.loadFont",AA_FONT_SMALL,0);
+        UDP.printf("tft.loadFont(%d)\n",AA_FONT_SMALL);
         fontLoaded=AA_FONT_SMALL;
     }
-    //UDPsend("tft.setCursor",_winStaNr.x + 6 , _winStaNr.y + 2);
-    UDPsend("tft.setTextColor",TFT_LAVENDER, TFT_BLACK);
-    sprintf(_chbuf, "STA: %03d", _cur_station);
-    //UDPsend("tft.print",_chbuf);
-    UDPsend("tft.drawString", _chbuf, _winStaNr.x + 6 , _winStaNr.y + AA_FONT_SMALL + 2);
-    //UDPsend("tft.unloadFont()");
+    UDP.printf("tft.setTextColor(%d,%d)\n",TFT_LAVENDER, TFT_BLACK);
+    //sprintf(_chbuf, "STA: %03d", _cur_station);
+    UDP.printf("tft.drawString(STA: %03d,%d,%d)\n", _cur_station, _winStaNr.x, _winStaNr.y + AA_FONT_SMALL + 2);
 }
 void updateSleepTime(boolean noDecrement){  // decrement and show new value in footer
     if(_f_sleeping) return;
     boolean sleep = false;
     if(_sleeptime == 1) sleep = true;
     if(_sleeptime > 0 && !noDecrement) _sleeptime--;
+
     if(_state != ALARM){
         char Slt[15];
         sprintf(Slt,"S  %d:%02d", _sleeptime / 60, _sleeptime % 60);
         if(fontLoaded!=AA_FONT_SMALL)
         {   
-            UDPsend("tft.loadFont",AA_FONT_SMALL,0);
+            UDP.printf("tft.loadFont(%d)\n",AA_FONT_SMALL);
             fontLoaded=AA_FONT_SMALL;
         }
-        if(!_sleeptime) UDPsend("tft.setTextColor",TFT_DEEPSKYBLUE, TFT_BLACK);
-        else UDPsend("tft.setTextColor",TFT_RED, TFT_BLACK);
+        if(!_sleeptime) UDP.printf("tft.setTextColor(%d,%d)\n",TFT_DEEPSKYBLUE, TFT_BLACK);
+        else UDP.printf("tft.setTextColor(%d,%d)\n",TFT_RED, TFT_BLACK);
         clearSleep();
-        //UDPsend("tft.setCursor",_winSleep.x + 25 , _winSleep.y + 2);
-        //UDPsend("tft.print",Slt);
-        UDPsend("tft.drawString",Slt, _winSleep.x + 25 , _winSleep.y +AA_FONT_SMALL + 2);
+        UDP.printf("tft.drawString(%s,%d,%d)\n",Slt, _winSleep.x + 25 , _winSleep.y +AA_FONT_SMALL + 2);
     }
     if(sleep){ // fall asleep
         stopSong();
         clearAll();
-        UDPsend("setTFTbrightness(0)");
+        UDP.printf("setTFTbrightness(%d)\n",0);
         _f_sleeping = true;
         SerialPrintfln("falling asleep");
     }
-    //UDPsend("tft.unloadFont()");
 }
 void showVolumeBar(){   //Mostly visible and touch
     uint16_t vol = 480 * _cur_volume/21;
-    UDPsend("tft.fillRect",_winVolBar.x, _winVolBar.y, vol, 8, TFT_RED);
-    UDPsend("tft.fillRect",vol+1, _winVolBar.y, 480-vol+1, 8, TFT_GREEN);
+    UDP.printf("tft.fillRect(%d,%d,%d,%d,%d)\n",_winVolBar.x, _winVolBar.y, vol, 8, TFT_RED);
+    UDP.printf("tft.fillRect(%d,%d,%d,%d,%d)\n",vol+1, _winVolBar.y, 480-vol+1, 8, TFT_GREEN);
+    UDP.endPacket();    //close
+    vTaskDelay(50);
+    UDP.beginPacket(Display, UDP_port); //open
 }
 void showFooter(){  // stationnumber, sleeptime, IPaddress
     showFooterStaNr();
-    vTaskDelay(10);
     updateSleepTime();
-    vTaskDelay(10);
+    UDP.endPacket();    //close
+    vTaskDelay(50);
+    UDP.beginPacket(Display, UDP_port); //open
     showFooterIPaddr();
 }
 void display_info(const char *str, int xPos, int yPos, uint16_t color, uint16_t indent, uint16_t winHeight){
-    UDPsend("tft.fillRect",xPos, yPos, 480 - xPos, winHeight, TFT_BLACK);  // Clear the space for new info
-    UDPsend("tft.setTextColor",color, TFT_BLACK);                                // Set the requested color
-    UDPsend("tft.setCursor",xPos + indent, yPos);                            // Prepare to show the info
-    UDPsend("tft.print",str);
+    UDP.beginPacket(Display, UDP_port); //open
+    UDP.printf("tft.fillRect(%d,%d,%d,%d,%d)\n",xPos, yPos, 480 - xPos, winHeight, TFT_BLACK);  // Clear the space for new info
+    UDP.printf("tft.setTextColor(%d,%d)\n",color, TFT_BLACK);                                // Set the requested color
+    UDP.printf("tft.setCursor(%d,%d)\n",xPos + indent, yPos);                            // Prepare to show the info
+    UDP.printf("tft.print(%s)\n",str);
+    UDP.endPacket();    //close
 }
 void showStreamTitle(){
-
+    UDP.endPacket();    //close
+    vTaskDelay(50);
+    UDP.beginPacket(Display, UDP_port); //open
     String ST = _streamTitle;
     Serial.println("streamtitle=" + ST);
     String ST2="";
     ST.trim();  // remove all leading or trailing whitespaces
-    //if(ST.length() == 0 && _icydescription.length() != 0) ST = _icydescription;
     webSrv.send("streamtitle=" + ST);
     ST.replace(" | ", "\n");   // some stations use pipe as \n or
     ST.replace("| ", "\n");    // or
     ST.replace("|", "\n");
+    ST.replace(", ", " ");  //remove comma for Remote display
     Serial.println("adjusted streamtitle=" + ST);
     if (ST.indexOf( " - ")>1){
         ST2=ST.substring(ST.indexOf( " - ")+3); //usualy the song
@@ -797,31 +854,28 @@ void showStreamTitle(){
         Serial.println("artist=" + ST);
         Serial.println("song=" + ST2);
     }
+    if(ST.length()>50) {ST=ST.substring(0,49);}if(ST2.length()>50) {ST2=ST2.substring(0,49);}
     int font;
     if (ST.length()<=20 || ST2.length()<=20) {font=AA_FONT_LARGE;}
     if (ST.length()>20 || ST2.length()>20) {font=AA_FONT_NORMAL;}
-    if (ST.length()>50 || ST2.length()>50) {font=AA_FONT_SMALL;}
+    if (ST.length()>30 || ST2.length()>30) {font=AA_FONT_SMALL;}
     if(fontLoaded!=font)
     {   
-        UDPsend("tft.loadFont",font,0);
+        UDP.printf("tft.loadFont(%d)\n",font);
         fontLoaded=font;
     }
-    UDPsend("tft.setTextColor",TFT_HOTPINK, TFT_BLACK);
-    UDPsend("tft.fillRect",_winTitle.x, _winTitle.y, 480 - _winTitle.x, _winTitle.h, TFT_BLACK);  // Clear the space for new info
+    UDP.printf("tft.setTextColor(%d,%d)\n",TFT_HOTPINK, TFT_BLACK);
+    UDP.printf("tft.fillRect(%d,%d,%d,%d,%d)\n",_winTitle.x, _winTitle.y, 480 - _winTitle.x, _winTitle.h, TFT_BLACK);  // Clear the space for new info
     if (ST2==""){
-        UDPsend("tft.drawString", ST.c_str(), 0, _winTitle.y + 45 + fontLoaded);
+        UDP.printf("tft.drawString(%s,%d,%d)\n", ST.c_str(), 0, _winTitle.y + 45 + fontLoaded);
     } else{
-        UDPsend("tft.drawString", ST.c_str(), 0, _winTitle.y + 20 + fontLoaded);
-        UDPsend("tft.setTextColor",TFT_CYAN, TFT_BLACK);
-        UDPsend("tft.drawString", ST2.c_str(), 0, _winTitle.y + 20 + fontLoaded + fontLoaded);
+        UDP.printf("tft.drawString(%s,%d,%d)\n", ST.c_str(), 0, _winTitle.y + 20 + fontLoaded);
+        UDP.printf("tft.setTextColor(%d,%d)\n",TFT_CYAN, TFT_BLACK);
+        UDP.printf("tft.drawString(%s,%d,%d)\n", ST2.c_str(), 0, _winTitle.y + 20 + fontLoaded + fontLoaded);
     }
-
-
-    //UDPsend("tft.println",ST.c_str());
-    //UDPsend("tft.setTextColor",TFT_CYAN, TFT_BLACK);
-    //UDPsend("tft.print",ST2.c_str());
-    //UDPsend("tft.unloadFont()");
-
+    UDP.endPacket();    //close
+    vTaskDelay(50);
+    UDP.beginPacket(Display, UDP_port); //open
 }
 void showLogoAndStationName()
 {
@@ -843,7 +897,10 @@ void showLogoAndStationName()
         SN_utf8 = SN_utf8.substring(0, idx);
     }
     SN_ascii.trim();
-    SN_utf8.trim();    
+    SN_utf8.trim();  
+    UDP.endPacket();    //close
+    vTaskDelay(50);
+    UDP.beginPacket(Display, UDP_port); //open  
     if (SN_utf8.indexOf( " - ")>1){
         SN2=SN_utf8.substring(SN_utf8.indexOf( " - ")+3); //2nd part
         SN=SN_utf8.substring(0, SN_utf8.indexOf( " - ")); //1rst part
@@ -851,7 +908,7 @@ void showLogoAndStationName()
         SN=SN_utf8.substring(0, SN_utf8.indexOf(" "));    //This is first (or only part)
         if(SN_utf8.indexOf( " ")>=1){    //When there is a space
             SN2=SN_utf8.substring(SN_utf8.indexOf( " ")+1);  //Split at first space, this is second part
-        } else{UDPsend("tft.setCursor",_winName.x, _winName.y+30);}   //When no second line, show a little lower
+        } else{UDP.printf("tft.setCursor(%d,%d)\n",_winName.x, _winName.y+30);}   //When no second line, show a little lower
     }
     int font;
     if (SN.length()<=15 || SN2.length()<=15) {font=AA_FONT_LARGE;}
@@ -859,74 +916,73 @@ void showLogoAndStationName()
     if (SN.length()>40 || SN2.length()>40) {font=AA_FONT_SMALL;}
     if(fontLoaded!=font)
     {   
-        UDPsend("tft.loadFont",font,0);
+        UDP.printf("tft.loadFont(%d)\n",font);
         fontLoaded=font;
     }
     clearFName();       //clear logo and station Name
-    UDPsend("tft.setTextColor",TFT_WHITE, TFT_BLACK);
-    UDPsend("tft.drawString", SN.c_str(), _winName.x, _winName.y + font + 10);
-    UDPsend("tft.drawString", SN2.c_str(), _winName.x, _winName.y + font + font + 10);
+    UDP.printf("tft.setTextColor(%d,%d)\n",TFT_WHITE, TFT_BLACK);
+    UDP.printf("tft.drawString(%s,%d,%d)\n", SN.c_str(), _winName.x, _winName.y + font + 10);
+    UDP.printf("tft.drawString(%s,%d,%d)\n", SN2.c_str(), _winName.x, _winName.y + font + font + 10);
     String logo = "/logo/m/" + String(UTF8toASCII(SN_ascii.c_str())) +".jpg";
     Serial.print("logo="); Serial.println(logo);
-    UDPsend("TJpgDec.drawSdJpg",  0, _winName.y, logo.c_str());
+    UDP.printf("TJpgDec.drawSdJpg(%d,%d,%s)\n",  0, _winName.y, logo.c_str());
+    UDP.endPacket();
+    vTaskDelay(50);
+    UDP.beginPacket(Display, UDP_port); //open
+
 }
 void showFileName(const char* fname){
-
+    String str=String(fname);
+    int strlen=str.length();
+    if(strlen > 51) {str=str.substring(strlen-51);}    //limit to 1 line, we want last part
+    UDP.beginPacket(Display, UDP_port); //open
     if(fontLoaded!=AA_FONT_SMALL)
     {   
-        UDPsend("tft.loadFont",AA_FONT_SMALL,0);
+        UDP.printf("tft.loadFont(%d)\n",AA_FONT_SMALL);
         fontLoaded=AA_FONT_SMALL;
     }
-    UDPsend("tft.fillRect",0, _winTitle.y,   480, 40,   TFT_BLACK);
-    //UDPsend("tft.setCursor",_winTitle.x, _winTitle.y + AA_FONT_SMALL + 10);
-    //UDPsend("tft.setTextColor",TFT_CYAN, TFT_BLACK);
-    UDPsend("tft.drawString", fname, _winTitle.x, _winTitle.y + AA_FONT_SMALL + 10);
-    /*UDPsend("tft.setTextWrap,0"); //let it run of screen
-    UDPsend("tft.print",fname);
-    UDPsend("tft.setTextWrap,1");*/
-
+    
+    UDP.printf("tft.fillRect(%d,%d,%d,%d,%d)\n",0, _winTitle.y,   480, 40,   TFT_BLACK);
+    UDP.printf("tft.drawString(%s,%d,%d)\n", str.c_str(), _winTitle.x, _winTitle.y + AA_FONT_SMALL + 10);
+    UDP.endPacket();    //close
 }
 void showArtistSongAudioFile(){
-    //if(_state==MP3PLAYER || _state==MP3PLAYERico){
-        Serial.print("run showartistsongmp3: "); Serial.print("artsong= ");Serial.println(artsong);
-        String _song=artsong.substring(artsong.indexOf( " - ")+3);
-        String _artist=artsong.substring(0, artsong.indexOf( " - "));
-        Serial.println(_artist);
-        Serial.println(_song);
-        artsong="";
-
-        if (_song.length() <= 15) 
+    if(_state==PLAYER || _state==PLAYERico){
+        UDP.endPacket();
+        vTaskDelay(20);
+        UDP.beginPacket(Display, UDP_port); //open
+        if (Title.length() <= 15 && artsong.length() <= 15) 
         {
             if(fontLoaded!=AA_FONT_LARGE)
             {   
-                UDPsend("tft.loadFont",AA_FONT_LARGE,0);
+                UDP.printf("tft.loadFont(%d)\n",AA_FONT_LARGE);
                 fontLoaded=AA_FONT_LARGE;
             }
-        } else {
+        } else if (Title.length() <= 25 && artsong.length() <= 25) {
             if(fontLoaded!=AA_FONT_NORMAL)
             {   
-                UDPsend("tft.loadFont",AA_FONT_NORMAL,0);
+                UDP.printf("tft.loadFont(%d)\n",AA_FONT_NORMAL);
                 fontLoaded=AA_FONT_NORMAL;
             }
-        //if (tft.textWidth(ST2) >tft.width()-5) {font=AA_FONT_SMALL; tft.loadFont(AA_FONT_SMALL);}
-        //if (tft.textWidth(ST2) >tft.width()-5) {font=AA_FONT_XSMALL; tft.loadFont(AA_FONT_XSMALL);}
-        
+        } else {
+            UDP.printf("tft.loadFont(%d)\n",AA_FONT_SMALL);
+            fontLoaded=AA_FONT_SMALL;
+        }
         clearFName();
-        UDPsend("tft.setTextColor",TFT_HOTPINK, TFT_BLACK);
-        UDPsend("tft.drawString", _artist.c_str(), 0, _winName.y + fontLoaded);
-        //UDPsend("tft.setCursor",0, _winName.y);
-        //UDPsend("tft.println",_artist.c_str());
-        UDPsend("tft.setTextColor",TFT_CYAN, TFT_BLACK);
-        UDPsend("tft.drawString", _song.c_str(), 0, _winName.y + fontLoaded + fontLoaded);
-        //UDPsend("tft.print",_song.c_str());
-
-        //UDPsend("tft.unloadFont()");
-
+        UDP.printf("tft.setTextColor(%d,%d)\n",TFT_HOTPINK, TFT_BLACK);
+        UDP.printf("tft.drawString(%s,%d,%d)\n", artsong.c_str(), 0, _winName.y + fontLoaded);
+        UDP.printf("tft.setTextColor(%d,%d)\n",TFT_CYAN, TFT_BLACK);
+        UDP.printf("tft.drawString(%s,%d,%d)\n", Title.c_str(), 0, _winName.y + fontLoaded + fontLoaded);
+        artsong="";
+        UDP.endPacket();
+        vTaskDelay(20);
+        UDP.beginPacket(Display, UDP_port); //open
     }
-
 }
 void display_time(boolean showall){ //show current time on the TFT Display
-    static String t, oldt = "";
+    
+    
+    /*static String t, oldt = "";
     static boolean k = false;
     uint8_t  i = 0, yOffset = 0;
     uint16_t x, y, space, imgHeigh, imgWidth_l, imgWidth_s;
@@ -968,7 +1024,7 @@ void display_time(boolean showall){ //show current time on the TFT Display
             if((t[i]=='d')||(t[i]=='e'))x += imgWidth_s + space; else x += imgWidth_l + space;
         }
         oldt=t;
-    }
+    }*/
 }
 void display_alarmDays(uint8_t ad, boolean showall){ // Sun ad=0, Mon ad=1, Tue ad=2 ....
     uint8_t i = 0;
@@ -1033,28 +1089,34 @@ void display_alarmtime(int8_t xy, int8_t ud, boolean showall){
 
     char hhmm[15];
     sprintf(hhmm,"%d%d%d%d", h / 10, h %10, m /10, m %10);
-
+    UDP.endPacket();
+    vTaskDelay(50);
+    UDP.beginPacket(Display, UDP_port); //open
     if(showall){
-        drawImage("/digits/drt.jpg", _alarmtimeXPos[4], _alarmdays_h + corrY);
+        //drawImage("/digits/m/drt.jpg", _alarmtimeXPos[4], _alarmdays_h + corrY);
+        UDP.printf("TJpgDec.drawFsJpg(%d,%d,%s)\n", _alarmtimeXPos[4], _alarmdays_h + corrY, "/digits/m/drt.jpg");
     }
 
     for(uint8_t i = 0; i < 4; i++){
-        strcpy(_path, "/digits/");
+        strcpy(_path, "/digits/m/");
         strncat(_path, (const char*) hhmm + i, 1);
         if(showall){
             if(i == pos) strcat(_path, "or.jpg");   //show orange number
             else         strcat(_path, "rt.jpg");   //show red numbers
-            drawImage(_path, _alarmtimeXPos[i], _alarmdays_h + corrY);
+            //drawImage(_path, _alarmtimeXPos[i], _alarmdays_h + corrY);
+            UDP.printf("TJpgDec.drawFsJpg(%d,%d,%s)\n", _alarmtimeXPos[i], _alarmdays_h + corrY, _path);
         }
 
         else{
             if(i == updatePos){
                 strcat(_path, "or.jpg");
-                drawImage(_path, _alarmtimeXPos[i], _alarmdays_h + corrY);
+                //drawImage(_path, _alarmtimeXPos[i], _alarmdays_h + corrY);
+                UDP.printf("TJpgDec.drawFsJpg(%d,%d,%s)\n", _alarmtimeXPos[i], _alarmdays_h + corrY, _path);
             }
             if(i == oldPos){
                 strcat(_path, "rt.jpg");
-                drawImage(_path, _alarmtimeXPos[i], _alarmdays_h + corrY);
+                //drawImage(_path, _alarmtimeXPos[i], _alarmdays_h + corrY);
+                UDP.printf("TJpgDec.drawFsJpg(%d,%d,%s)\n", _alarmtimeXPos[i], _alarmdays_h + corrY, _path);
             }
         }
     }
@@ -1080,10 +1142,10 @@ void display_sleeptime(int8_t ud){  // set sleeptimer
     }
     char tmp[10];
     sprintf(tmp, "%d%02d", _sleeptime / 60, _sleeptime % 60);
-    char path[128] = "/digits/";
+    char path[128] = "/digits/m/";
 
     for(uint8_t i = 0; i < 4; i ++){
-        strcpy(path, "/digits/");
+        strcpy(path, "/digits/m/");
         if(i == 3){
             if(!_sleeptime) strcat(path, "dsgn.jpg");
             else            strcat(path, "dsrt.jpg");
@@ -1093,7 +1155,8 @@ void display_sleeptime(int8_t ud){  // set sleeptimer
             if(!_sleeptime) strcat(path, "sgn.jpg");
             else            strcat(path, "srt.jpg");
         }
-        drawImage(path, _sleeptimeXPos[i], 48);
+        //drawImage(path, _sleeptimeXPos[i], 48);
+        UDP.printf("TJpgDec.drawFsJpg(%d,%d,%s)\n", _sleeptimeXPos[i], 48, path);
     }
 }
 boolean drawImage(const char* path, uint16_t posX, uint16_t posY, uint16_t maxWidth , uint16_t maxHeigth){
@@ -1110,13 +1173,15 @@ boolean drawImage(const char* path, uint16_t posX, uint16_t posY, uint16_t maxWi
         return false;   //drawBmp(scImg, posX, posY, maxWidth, maxHeigth);
     }
     if(endsWith(scImg, "jpg")){
-        UDPsend("TJpgDec.drawSdJpeg", posX, posY, scImg);
+        UDP.beginPacket(Display, UDP_port); //open
+        UDP.printf("TJpgDec.drawSdJpeg(%d,%d,%s)\n", posX, posY, scImg);
+        UDP.endPacket();    //close 
         return true;
     }
     return false; // neither jpg nor bmp
 }
 void setTFTbrightness(uint8_t duty){ //duty 0...100 (min...max)
-    UDPsend("tft.brightness",duty,0);
+    UDP.printf("tft.brightness(%d)\n",duty);
     /*ledcAttachPin(TFT_BL, 1);        //Configure variable led, TFT_BL pin to channel 1
     ledcSetup(1, 12000, 8);          // 12 kHz PWM and 8 bit resolution
     ledcWrite(1, duty * 2.55);*/
@@ -1124,35 +1189,40 @@ void setTFTbrightness(uint8_t duty){ //duty 0...100 (min...max)
 inline uint32_t getTFTbrightness(){
     return ledcRead(1);
 }
+inline uint8_t getBrightness(){
+    return pref.getUShort("brightness");
+}
+void showBrightnessBar(){
+    uint16_t br = 480 * getBrightness()/100;   //same as volume bar
+    //clearVolBar();
+    UDP.printf("tft.fillRect(%d,%d,%d,%d,%d)\n",_winVolBar.x, _winVolBar.y, br, 8, TFT_RED);
+    UDP.printf("tft.fillRect(%d,%d,%d,%d,%d)\n",br+1, _winVolBar.y, 480-br+1, 8, TFT_GREEN);
+}
+void setBrightness(uint8_t br)
+{
+    UDP.beginPacket(Display, UDP_port); //open
+    pref.putUShort("brightness", br);
+    UDP.printf("tft.brightness(%d)\n",br);
+    showBrightnessBar();
+    UDP.endPacket();
+}
 inline uint8_t downBrightness(){
     uint8_t br; br = pref.getUShort("brightness");
     if(br>5) {
         br-=5;
-        pref.putUShort("brightness", br);
-        setTFTbrightness(br);
-        showBrightnessBar();
+        setBrightness(br);
     } return br;
 }
 inline uint8_t upBrightness(){
     uint8_t br; br = pref.getUShort("brightness");
     if(br < 100){
         br += 5;
-        pref.putUShort("brightness", br);
-        setTFTbrightness(br);
-        showBrightnessBar();
+        setBrightness(br);
     }
     return br;
 }
-inline uint8_t getBrightness(){
-    return pref.getUShort("brightness");
-}
 
-void showBrightnessBar(){
-    uint16_t vol = 480 * getBrightness()/100;
-    //clearVolBar();
-    UDPsend("tft.fillRect",_winVolBar.x, _winVolBar.y, vol, 8, TFT_RED);
-    UDPsend("tft.fillRect",vol+1, _winVolBar.y, 480-vol+1, 8, TFT_GREEN);
-}
+
 
 /***********************************************************************************************************************
 *                                         L I S T A U D I O F I L E                                                    *
@@ -1282,7 +1352,7 @@ void stopSong(){
 ***********************************************************************************************************************/
 void setup(){
     mutex_rtc     = xSemaphoreCreateMutex();
-    mutex_display = xSemaphoreCreateMutex();
+    //mutex_display = xSemaphoreCreateMutex();
 
     Serial.begin(115200);
 
@@ -1400,6 +1470,7 @@ void setup(){
     }else{
       Serial.println("PSRAM not available");
     }
+    UDP.beginPacket(Display, UDP_port);
     _sum_stations = stations.getUInt("sumstations", 0);
     SerialPrintfln("Number of saved stations: %d", _sum_stations);
     _cur_station =  pref.getUInt("station", 1);
@@ -1418,18 +1489,29 @@ void setup(){
     _alarmdays = pref.getUShort("alarm_weekday");
     _alarmtime = pref.getUInt("alarm_time");
     _state = RADIO;
-    delay(2000);
+    delay(1000);
+    UDP.endPacket();
+    delay(100);
+    UDP.beginPacket(Display, UDP_port);
+    UDP.printf("setClock.Analog(0)\n"); //analog clock off
+    UDP.printf("setClock.Digital(0)\n"); //Digital clock off
+    UDP.printf("setClock.Show_time(1)\n");  //Show_time On
+    UDP.endPacket();
+    delay(100);
+    UDP.beginPacket(Display, UDP_port);
     clearAll(); // Clear screen
     showHeadlineItem(RADIO);
     showHeadlineVolume(_cur_volume);
+    UDP.endPacket();
     delay(100);
+    UDP.beginPacket(Display, UDP_port);
     setStation(_cur_station);
     if(DECODER == 0) setTone();    // HW Decoder
     else             setI2STone(); // SW Decoder
-    delay(100);
     showFooter();
-    delay(100);
     showVolumeBar();
+    UDP.printf("tft.setTextWrap(%d,%d)\n", 0, 0);
+    UDP.endPacket();
 
   
     timer = timerBegin(0, 80, true); // start at 0; divider for 80 MHz = 80 so we have 1 MHz timer; count up = true; timers are 64 bits
@@ -1574,7 +1656,7 @@ void setStation(uint16_t sta){
     }
     showLogoAndStationName();
     StationsItems();
-    vTaskDelay(1000);
+    vTaskDelay(500);
     setVolume(vol);
 }
 void nextStation(){
@@ -1836,7 +1918,7 @@ void next_track_needed(bool prevnext){  //1=next; 0=prev
             str.concat("\n");
             webSrv.send(str);
             str = _audiotrack.substring(12);
-            //showFileName(str.c_str());
+            showFileName(str.c_str());
             previousMillis = millis();
         }
     }
@@ -1906,43 +1988,33 @@ bool send_tracks_to_web(void){  //read tracklist and send is to the webpage
 *                                          M E N U E / B U T T O N S                                                   *
 ***********************************************************************************************************************/
 void changeState(int state){
+    log_i("changeState, state is: %i", _state);
     if(state == _state) return;  //nothing todo
+    UDP.endPacket();
+    vTaskDelay(50);
+    UDP.beginPacket(Display, UDP_port); //open
     switch(state) {
         case RADIO:{
+            clearAll();
             showHeadlineItem(RADIO);
-            if(_state == RADIOico || _state == RADIOmenue){
-                showStreamTitle();
-
-            }
-            else if(_state == PLAYER  || _state == PLAYERico){
-                setStation(_cur_station);
-                showStreamTitle();
-
-            }
-            else if(_state == CLOCKico || _state == SETTINGS){
-                showLogoAndStationName();
-                showStreamTitle();
-
-            }
-            else if(_state == SLEEP){
-                clearFName();
-                clearTitle();
-                connecttohost(_lastconnectedhost);
-                showLogoAndStationName();
-                showFooter();
-
-            }
-            else{
-                showLogoAndStationName();
-                showStreamTitle();
-                showFooter();
-
-            }
-            showVolumeBar();
             showHeadlineVolume(_cur_volume);
+            UDP.printf("setClock.Show_time(1)\n");
+            showLogoAndStationName();
+            showVolumeBar();
+            showStreamTitle();
+            showFooter();
+            UDP.endPacket();
+            vTaskDelay(50);
+            UDP.beginPacket(Display, UDP_port); //open
+            switch(clocktype){
+                case 1:{UDP.printf("setClock.Show_time(1)\n");break;}  //other clock
+                case 2:{UDP.printf("setClock.Analog(0)\n");break;}  //Big sprite clock
+                case 3:{UDP.printf("setClock.Digital(0)\n");break;}  //analog
+            }
             break;
         }
         case RADIOico:{
+            log_i("RADIOico");
             showHeadlineItem(RADIOico);
             _pressBtn[0] = "/Buttons/Button_Mute_Yellow.jpg";         _releaseBtn[0] = _f_mute? "/Buttons/Button_Mute_Red.jpg":"/Buttons/Button_Mute_Green.jpg";
             _pressBtn[1] = "/Buttons/MP3_Yellow.jpg";          _releaseBtn[1] = "/Buttons/MP3_Green.jpg";
@@ -1950,14 +2022,25 @@ void changeState(int state){
             _pressBtn[3] = "/Buttons/Button_Previous_Yellow.jpg";     _releaseBtn[3] = "/Buttons/Button_Previous_Green.jpg";
             _pressBtn[4] = "/Buttons/Button_Next_Yellow.jpg";         _releaseBtn[4] = "/Buttons/Button_Next_Green.jpg";
             _pressBtn[5] = "/Buttons/Clock_Yellow.jpg";        _releaseBtn[5] = "/Buttons/Clock_Green.jpg";
-            _pressBtn[6] = "/Buttons/Settings_Yellow.jpg";     _releaseBtn[6] = "/Buttons/Settings_ Green.jpg";
+            _pressBtn[6] = "/Buttons/Settings_Yellow.jpg";     _releaseBtn[6] = "/Buttons/Settings_Green.jpg";
+            UDP.endPacket();
+            vTaskDelay(50);
+            UDP.beginPacket(Display, UDP_port); //open
             clearTitle();
-            showVolumeBar();
-            showHeadlineVolume(_cur_volume);
-            for(int i = 0; i < 7 ; i++) {UDPsend("TJpgDec.drawFsJpg",i * _winButton.w, _winButton.y, _releaseBtn[i]);}
+            for(int i = 0; i < 7 ; i++)
+            {
+                UDP.printf("TJpgDec.drawFsJpg(%d,%d,%s)\n",i * _winButton.w, _winButton.y, _releaseBtn[i]);
+                if(i==1 || i==4) 
+                {
+                    UDP.endPacket();
+                    vTaskDelay(50);
+                    UDP.beginPacket(Display, UDP_port); //open
+                }
+            }
             break;
         }
         case RADIOmenue:{
+            log_i("In RADIOmenue");
             showHeadlineItem(RADIOmenue);
             _pressBtn[0] = "/Buttons/MP3_Yellow.jpg";            _releaseBtn[0] = "/Buttons/MP3_Green.jpg";
             _pressBtn[1] = "/Buttons/Clock_Yellow.jpg";          _releaseBtn[1] = "/Buttons/Clock_Green.jpg";
@@ -1969,8 +2052,18 @@ void changeState(int state){
             else{
                 _pressBtn[4]="/Buttons/Black.jpg";                 _releaseBtn[4]="/Buttons/Black.jpg";
             }
-            for(int i = 0; i < 5 ; i++) {UDPsend("TJpgDec.drawFsJpg",i * _winButton.w, _winButton.y, _releaseBtn[i]);}
-            clearVolBar();
+            _pressBtn[5]="/Buttons/Black.jpg";                 _releaseBtn[5]="/Buttons/Black.jpg";
+            _pressBtn[6]="/Buttons/Black.jpg";                 _releaseBtn[6]="/Buttons/Black.jpg";
+            for(int i = 0; i < 7 ; i++)
+            {
+                UDP.printf("TJpgDec.drawFsJpg(%d,%d,%s)\n",i * _winButton.w, _winButton.y, _releaseBtn[i]);
+                if(i==1 || i==4) 
+                {
+                    UDP.endPacket();
+                    vTaskDelay(50);
+                    UDP.beginPacket(Display, UDP_port); //open
+                }
+            }
             break;
         }
         case CLOCK:{
@@ -1982,14 +2075,14 @@ void changeState(int state){
             }
             _state = CLOCK;
             clearAll();
-            showHeadlineItem(CLOCK);
-            if(!_f_mute) showHeadlineVolume(_cur_volume); else showHeadlineVolume(0);
-            showHeadlineTime();
-            showFooter();
+            UDP.printf("tft.showTime(0)\n");
+            UDP.endPacket();
+            vTaskDelay(50);
+            UDP.beginPacket(Display, UDP_port); //open
             switch(clocktype){
-                case 1:{display_time(true);break;}  //7_segment BMP
-                case 2:{display_time(true);break;}  //Big sprite clock
-                case 3:{display_time(true);break;}  //analog
+                case 1:{UDP.printf("setClock.Show_time(1)\n");break;}  //other clock
+                case 2:{UDP.printf("setClock.Analog(0)\n");UDP.printf("tftfillScreen(0)\n");UDP.printf("setClock.Digital(1)\n");break;}  //Big sprite clock
+                case 3:{UDP.printf("setClock.Digital(0)\n");UDP.printf("tftfillScreen(0)\n");UDP.printf("setClock.Analog(1)\n");break;}  //analog
             }
             break;
         }
@@ -1998,7 +2091,16 @@ void changeState(int state){
             showHeadlineItem(CLOCKico);
             showHeadlineVolume(_cur_volume);
             clearMid();
-            display_time(true);
+            UDP.endPacket();
+            vTaskDelay(50);
+            UDP.beginPacket(Display, UDP_port); //open
+            switch(clocktype){
+                case 1:{UDP.printf("setClock.Show_time(0)\n");break;}  //small in top right
+                case 2:{UDP.printf("setClock.Digital(0)\n");break;}  //Big sprite clock
+                case 3:{UDP.printf("setClock.Analog(0)\n");break;}  //analog
+            }
+            UDP.printf("setClock.Show_time(1)\n");
+            //display_time(true);
             _pressBtn[0] = "/Buttons/Bell_Yellow.jpg";                  _releaseBtn[0] = "/Buttons/Bell_Green.jpg";;
             _pressBtn[1] = "/Buttons/Button_Sleep_Yellow.jpg";          _releaseBtn[1] = "/Buttons/Button_Sleep_Green.jpg";
             _pressBtn[2] = "/Buttons/Radio_Yellow.jpg";                 _releaseBtn[2] = "/Buttons/Radio_Green.jpg";
@@ -2008,13 +2110,22 @@ void changeState(int state){
             _pressBtn[6] = "/Buttons/Black.jpg";                       _releaseBtn[6] = "/Buttons/Black.jpg"; 
             //for(int i = 0; i < 6 ; i++) {drawImage(_releaseBtn[i], i * _winButton.w, _winButton.y);}
             int s=0;
-            for(int i = 0; i < 7 ; i++) {UDPsend("TJpgDec.drawFsJpg",i * _winButton.w, _winButton.y, _releaseBtn[i]);}
+            for(int i = 0; i < 7 ; i++) 
+            {
+                UDP.printf("TJpgDec.drawFsJpg(%d,%d,%s)\n",i * _winButton.w, _winButton.y, _releaseBtn[i]);
+                if(i==1 || i==4) 
+                {
+                    UDP.endPacket();
+                    vTaskDelay(50);
+                    UDP.beginPacket(Display, UDP_port); //open
+                }
+                }
             break;
         }
         case BRIGHTNESS:{
             showHeadlineItem(BRIGHTNESS);
             _pressBtn[0] = "/Buttons/Button_Previous_Yellow.jpg"; _releaseBtn[0] = "/Buttons/Button_Previous_Green.jpg";
-            _pressBtn[1] = "/Buttons/Button_Right_Yellow.jpg";    _releaseBtn[1] = "/Buttons/Button_Right_Green.jpg";
+            _pressBtn[1] = "/Buttons/Button_Next_Yellow.jpg";    _releaseBtn[1] = "/Buttons/Button_Next_Green.jpg";
             _pressBtn[2] = "/Buttons/OK_Yellow.jpg";              _releaseBtn[2] = "/Buttons/OK_Green.jpg";
             _pressBtn[3] = "/Buttons/Black.jpg";                  _releaseBtn[3] = "/Buttons/Black.jpg";
             _pressBtn[4] = "/Buttons/Black.jpg";                  _releaseBtn[4] = "/Buttons/Black.jpg";
@@ -2022,11 +2133,23 @@ void changeState(int state){
             _pressBtn[6] = "/Buttons/Black.jpg";                  _releaseBtn[6] = "/Buttons/Black.jpg";
             clearMid();
             clearFooter();
-            UDPsend("TJpgDec.drawSdJpg", 0, _winName.y,"/common/Brightness.jpg");
+            UDP.printf("TJpgDec.drawSdJpg(%d,%d,%s)\n", 0, _winName.y,"/common/Brightness.jpg");
             showBrightnessBar();
-            //for(int i = 0; i < 5 ; i++) {drawImage(_releaseBtn[i], i * _winButton.w, _winButton.y);}drawImage(_releaseBtn[btnNr], btnNr * _winButton.w , _dispHeight - _winButton.h);
-            for(int i = 0; i < 7 ; i++) {UDPsend("TJpgDec.drawFsJpg",i * _winButton.w, _winButton.y, _releaseBtn[i]);}
+            UDP.endPacket();
+            vTaskDelay(50);
+            UDP.beginPacket(Display, UDP_port); //open
+            for(int i = 0; i < 7 ; i++) 
+            {
+                UDP.printf("TJpgDec.drawFsJpg(%d,%d,%s)\n",i * _winButton.w, _winButton.y, _releaseBtn[i]);
+                if(i==2 || i==5) 
+                {
+                    UDP.endPacket();
+                    vTaskDelay(50);
+                    UDP.beginPacket(Display, UDP_port); //open
+                }
+            }
             break;
+
         }
         case PLAYER:{
             if(_state == RADIO){
@@ -2042,7 +2165,19 @@ void changeState(int state){
             _pressBtn[5] = shuffle?"/Buttons/Shuffle_Yellow.jpg":"/Buttons/Shuffle_Green.jpg";      _releaseBtn[5] = _pressBtn[5];
             _pressBtn[6] = "/Buttons/OK_Yellow.jpg";                _releaseBtn[6] = "/Buttons/OK_Green.jpg";
             //for(int i = 0; i < 5 ; i++) {drawImage(_releaseBtn[i], i * _winButton.w, _winButton.y);}
-            for(int i = 0; i < 7 ; i++) {UDPsend("TJpgDec.drawFsJpg",i * _winButton.w, _winButton.y, _releaseBtn[i]);}
+            for(int i = 0; i < 7 ; i++) 
+            {
+                UDP.printf("TJpgDec.drawFsJpg(%d,%d,%s)\n",i * _winButton.w, _winButton.y, _releaseBtn[i]);
+                if(i==1 || i==4) 
+                {
+                    UDP.endPacket();
+                    vTaskDelay(50);
+                    UDP.beginPacket(Display, UDP_port); //open
+                }
+            }
+            UDP.endPacket();
+            vTaskDelay(50);
+            UDP.beginPacket(Display, UDP_port); //open
             clearFName();
             showVolumeBar();
             showHeadlineVolume(_cur_volume);
@@ -2056,39 +2191,70 @@ void changeState(int state){
             _pressBtn[3] = "/Buttons/MP3_Yellow.jpg";               _releaseBtn[3]="/Buttons/MP3_Green.jpg";
             _pressBtn[4] = "/Buttons/Radio_Yellow.jpg";             _releaseBtn[4] = "/Buttons/Radio_Green.jpg";
             //for(int i = 0; i < 5 ; i++) {drawImage(_releaseBtn[i], i * _winButton.w, _winButton.y);}
-            for(int i = 0; i < 5 ; i++) {UDPsend("TJpgDec.drawFsJpg",i * _winButton.w, _winButton.y, _releaseBtn[i]);}
+            for(int i = 0; i < 5 ; i++) 
+            {
+                UDP.printf("TJpgDec.drawFsJpg(%d,%d,%s)\n",i * _winButton.w, _winButton.y, _releaseBtn[i]);
+                if(i==1 || i==4) 
+                {
+                    UDP.endPacket();
+                    vTaskDelay(50);
+                    UDP.beginPacket(Display, UDP_port); //open
+                }
+            }
             break;
         }
         case ALARM:{
-            _pressBtn[0] = "/Buttons/Button_Left_Yellow.jpg";    _releaseBtn[0] = "/Buttons/Button_Previous_Green.jpg";;
-            _pressBtn[1] = "/Buttons/Button_Next_Yellow.jpg";;   _releaseBtn[1] = "/Buttons/Button_Next_Green.jpg";;
-            _pressBtn[2] = "/Buttons/Up_Yellow.jpg";      _releaseBtn[2] = "/Buttons/Up_Green.jpg";
-            _pressBtn[3] = "/Buttons/Down_Yellow.jpg";    _releaseBtn[3] = "/Buttons/Down_Green.jpg";
-            _pressBtn[4] = "/Buttons/Button_Ready_Yellow.jpg";   _releaseBtn[4] = "/Buttons/Button_Ready_Green.jpg";
+            _pressBtn[0] = "/Buttons/Button_Previous_Yellow.jpg";   _releaseBtn[0] = "/Buttons/Button_Previous_Green.jpg";;
+            _pressBtn[1] = "/Buttons/Button_Next_Yellow.jpg";       _releaseBtn[1] = "/Buttons/Button_Next_Green.jpg";;
+            _pressBtn[2] = "/Buttons/Up_Green.jpg.jpg";             _releaseBtn[2] = "/Buttons/Up_Green.jpg";
+            _pressBtn[3] = "/Buttons/Down_Green.jpg";               _releaseBtn[3] = "/Buttons/Down_Green.jpg";
+            _pressBtn[4] = "/Buttons/Button_Ready_Yellow.jpg";      _releaseBtn[4] = "/Buttons/Button_Ready_Green.jpg";
             clearAll();
             display_alarmtime(0, 0, true);
             display_alarmDays(0, true);
             //for(int i = 0; i < 5 ; i++) {drawImage(_releaseBtn[i], i * _winButton.w,  _dispHeight - _winButton.h);}
-            for(int i = 0; i < 5 ; i++) {UDPsend("TJpgDec.drawFsJpg",i * _winButton.w, _winButton.y, _releaseBtn[i]);}
+            for(int i = 0; i < 5 ; i++) 
+            {
+                UDP.printf("TJpgDec.drawFsJpg(%d,%d,%s)\n",i * _winButton.w, _winButton.y, _releaseBtn[i]);
+                if(i==1 || i==4) 
+                {
+                    UDP.endPacket();
+                    vTaskDelay(50);
+                    UDP.beginPacket(Display, UDP_port); //open
+                }
+            }
             break;
         }
         case SLEEP:{
             showHeadlineItem(SLEEP);
-            _pressBtn[0] = "/Buttons/Up_Yellow.jpg";                 _releaseBtn[0] = "/Buttons/Up_Green.jpg";
-            _pressBtn[1] = "/Buttons/Down_Yellow.jpg";               _releaseBtn[1] = "/Buttons/Down_Green.jpg";;
+            _pressBtn[0] = "/Buttons/Up_Green.jpg";                  _releaseBtn[0] = "/Buttons/Up_Green.jpg";
+            _pressBtn[1] = "/Buttons/Down_Green.jpg";                _releaseBtn[1] = "/Buttons/Down_Green.jpg";;
             _pressBtn[2] = "/Buttons/OK_Yellow.jpg";                 _releaseBtn[2] = "/Buttons/OK_Green.jpg";
             _pressBtn[3] = "/Buttons/Black.jpg";                     _releaseBtn[3] = "/Buttons/Black.jpg";
             _pressBtn[4] = "/Buttons/Cancel_Yellow.jpg";             _releaseBtn[4] = "/Buttons/Cancel_Green.jpg";
             clearMid();
             display_sleeptime();
-            if(TFT_CONTROLLER < 2) UDPsend("TJpgDec.drawSdJpg", 198, 23,"/common/Night_Gown.bmp");
-            else                   UDPsend("TJpgDec.drawSdJpg", 280, 30, "/common/Night_Gown.bmp");
+            UDP.endPacket();
+            vTaskDelay(50);
+            UDP.beginPacket(Display, UDP_port); //open
+            
             //for(int i = 0; i < 5 ; i++) {drawImage(_releaseBtn[i], i * _winButton.w, _winButton.y);}
-            for(int i = 0; i < 5 ; i++) {UDPsend("TJpgDec.drawFsJpg",i * _winButton.w, _winButton.y, _releaseBtn[i]);}
+            for(int i = 0; i < 5 ; i++) 
+            {
+                UDP.printf("TJpgDec.drawFsJpg(%d,%d,%s)\n",i * _winButton.w, _winButton.y, _releaseBtn[i]);
+                if(i==3) 
+                {
+                    UDP.endPacket();
+                    vTaskDelay(50);
+                    UDP.beginPacket(Display, UDP_port); //open
+                }
+            }
+
             break;
         }
         case SETTINGS:{
             showHeadlineItem(SETTINGS);
+            _state = SETTINGS;
             //input click is change
             _pressBtn[0] = "/Buttons/Radio_Yellow.jpg";             if(input==1) {_releaseBtn[0] = "/Buttons/Radio_Green.jpg";}
                                                                     else if(input==2) {_releaseBtn[0]="/Buttons/MP3_Green.jpg";}
@@ -2101,37 +2267,65 @@ void changeState(int state){
             _pressBtn[4] = "/Buttons/Clock_Yellow.jpg";             _releaseBtn[4]="/Buttons/Clock_Green.jpg";               
             _pressBtn[5] = "/Buttons/Bulb_Yellow.jpg";              _releaseBtn[5]="/Buttons/Bulb_Green.jpg";                     
             _pressBtn[6] = "/Buttons/OK_Yellow.jpg";                _releaseBtn[6]="/Buttons/OK_Green.jpg";                
-            _state = SETTINGS;
+
             clearMid();
             if(fontLoaded!=AA_FONT_SMALL)
             {   
-                UDPsend("tft.loadFont",AA_FONT_SMALL,0);
+                UDP.printf("tft.loadFont(%d)\n",AA_FONT_SMALL);
                 fontLoaded=AA_FONT_SMALL;
             }
-            UDPsend("tft.setTextColor(TFT_WHITE, TFT_BLACK)");
-            UDPsend("tft.setCursor(5, 40)");
-            UDPsend("tft.print(Input: )"); 
-            switch(input){
-                case 1: {UDPsend("tft.println(Internet Radio)"); break;}
-                case 2: {UDPsend("tft.println(SD-card files)"); break;}
-                case 3: {UDPsend("tft.println(BT in)"); break;}
+            UDP.printf("tft.setTextColor(%d,%d)\n",TFT_WHITE, TFT_BLACK);
+            UDP.printf("tft.setCursor(%d,%d)\n", 0, 40);
+            UDP.endPacket();
+            vTaskDelay(50);
+            UDP.beginPacket(Display, UDP_port); //open
+            UDP.printf("tft.print(%s)\n", "Input: "); 
+            switch(input)
+            {
+                case 1: {UDP.printf("tft.println(Internet Radio)\n"); break;}
+                case 2: {UDP.printf("tft.println(SD-card files)\n"); break;}
+                case 3: {UDP.printf("tft.println(BT in)\n"); break;}
+                default: {break;}
             }
-            UDPsend("tft.print(Output: )");
-            switch(output){
-                case 1: {UDPsend("tft.println(Speaker)"); break;}
-                case 2: {UDPsend("tft.println(BT out)"); break;}
+            UDP.endPacket();
+            vTaskDelay(50);
+            UDP.beginPacket(Display, UDP_port); //open
+            UDP.printf("tft.print(Output: )\n");
+            Serial.print("output= "); Serial.println(output);
+            switch(output)
+            {
+                case 1: {UDP.printf("tft.println(Speaker)\n"); break;}
+                case 2: {UDP.printf("tft.println(BT out)\n"); break;}
+                default: {break;}
             }
-            UDPsend("tft.print(Clock type: )");
+            UDP.endPacket();
+            vTaskDelay(50);
+            UDP.beginPacket(Display, UDP_port); //open
+            UDP.printf("tft.print(Clock type: )\n");
             switch(clocktype){
-                case 1:{UDPsend("tft.println(Old digi clock)"); break;}
-                case 2:{UDPsend("tft.println(Digital clock/date)"); break;}
-                case 3:{UDPsend("tft.println(Analog clock)"); break;}
+                case 1:{UDP.printf("tft.println(Old digi clock)\n"); break;}
+                case 2:{UDP.printf("tft.println(Digital clock/date)\n"); break;}
+                case 3:{UDP.printf("tft.println(Analog clock)\n"); break;}
+                default: {break;}
             }
-            for(int i = 0; i < 7 ; i++) {UDPsend("TJpgDec.drawFsJpg",i * _winButton.w, _winButton.y, _releaseBtn[i]);}
+            UDP.endPacket();
+            vTaskDelay(50);
+            UDP.beginPacket(Display, UDP_port); //open
+            for(int i = 0; i < 7 ; i++) 
+            {
+                UDP.printf("TJpgDec.drawFsJpg(%d,%d,%s)\n",i * _winButton.w, _winButton.y, _releaseBtn[i]);
+                if(i==1 || i==4) 
+                {
+                    UDP.endPacket();
+                    vTaskDelay(50);
+                    UDP.beginPacket(Display, UDP_port); //open
+                }
+            }
             break;
         }
     }
     _state = state;
+    UDP.endPacket();
 }
 /***********************************************************************************************************************
 *                                                      L O O P                                                         *
@@ -2228,7 +2422,7 @@ void timer_stuff(void)
             time_s = gettime_s();
             xSemaphoreGive(mutex_rtc);
             //if(!BTTask_runs && !audioTask_runs){audioInit();}
-            //if(_state != ALARM && !_f_sleeping) showHeadlineTime();
+            //if(_state != ALARM && !_f_sleeping) UDP.printf("tft.showTime(1)\n")
             if(_state == CLOCK || _state == CLOCKico) display_time();
             if(_f_eof && (_state == RADIO || _f_eof_alarm)){
                 _f_eof = false;
@@ -2317,6 +2511,7 @@ void loop() {
     //ir.loop();
     ftpSrv.handleFTP();
     timer_stuff();
+    UDP_Check();
 
 }
 /***********************************************************************************************************************
@@ -2428,7 +2623,6 @@ void audio_id3data(const char *info){
     else if (i3d.startsWith("Title: ")) Title=(i3d.substring(7).c_str());
     else return;
     if (!artsong.isEmpty() && !Title.isEmpty()) {
-        artsong.concat(" - "); artsong.concat(Title); 
         showArtistSongAudioFile();
         webSrv.send("playing_now="+artsong);
     }  
@@ -2487,13 +2681,13 @@ void ir_res(uint32_t res){
 }
 // Event from TouchPad
 void changeBtn_pressed(uint8_t btnNr){
-    if(_state == ALARM || _state == BRIGHTNESS) {UDPsend("TJpgDec.drawFsJpg",btnNr * _winButton.w, _dispHeight - _winButton.h, _pressBtn[btnNr]);}
-    else                {UDPsend("TJpgDec.drawFsJpg",btnNr * _winButton.w, _winButton.y, _pressBtn[btnNr]);}
+    if(_state == ALARM || _state == BRIGHTNESS) {UDP.printf("TJpgDec.drawFsJpg(%d,%d,%s)\n",btnNr * _winButton.w, _dispHeight - _winButton.h, _pressBtn[btnNr]);}
+    else                {UDP.printf("TJpgDec.drawFsJpg(%d,%d,%s)\n",btnNr * _winButton.w, _winButton.y, _pressBtn[btnNr]);}
 }
 void changeBtn_released(uint8_t btnNr){
     if(_state == RADIOico || _state == PLAYER){
         if(_f_mute)  _releaseBtn[0] = "/Buttons/Button_Mute_Red.jpg";
-        else         _releaseBtn[0] = "/Buttons/Button_Next_Green.jpg";
+        else         _releaseBtn[0] = "/Buttons/Button_Mute_Green.jpg";
         if(_BT_In)   _releaseBtn[2] = "/Buttons/BTInYellow.jpg";
         else         _releaseBtn[2] = "/Buttons/BTInBlue.jpg";
 
@@ -2504,16 +2698,17 @@ void changeBtn_released(uint8_t btnNr){
     }
     if(_state == CLOCKico){
         if(_f_mute)  _releaseBtn[3] = "/Buttons/Button_Mute_Red.jpg";
-        else         _releaseBtn[3] = "/Buttons/Button_Mute_Greenjpg";
+        else         _releaseBtn[3] = "/Buttons/Button_Mute_Green.jpg";
     }
-    if(_state == ALARM || _state == BRIGHTNESS) {UDPsend("TJpgDec.drawFsJpg",btnNr * _winButton.w, _dispHeight - _winButton.h, _releaseBtn[btnNr]);}
-    else                {UDPsend("TJpgDec.drawFsJpg",btnNr * _winButton.w, _winButton.y, _releaseBtn[btnNr]);}
+    if(_state == ALARM) {UDP.printf("TJpgDec.drawFsJpg(%d,%d,%s)\n",btnNr * _winButton.w, _dispHeight - _winButton.h, _releaseBtn[btnNr]);}
+    else                {UDP.printf("TJpgDec.drawFsJpg(%d,%d,%s)\n",btnNr * _winButton.w, _winButton.y, _releaseBtn[btnNr]);}
+    
 }
 void tp_pressed(uint16_t x, uint16_t y){
     log_i("tp_pressed, state is: %i", _state);
     _touchCnt = TouchCnt;
-    enum : int8_t{none = -1, RADIO_1, RADIOico_1, RADIOico_2, RADIOmenue_1,
-                             PLAYER_1, PLAYERico_1, ALARM_1, BRIGHTNESS_1,
+    enum : int8_t{none = -1, RADIO_1, RADIOico_1, RADIOico_2, RADIOmenue_1, RADIOmenue_2,
+                             PLAYER_1, PLAYERico_1, ALARM_1, BRIGHTNESS_1, BRIGHTNESS_2,
                              CLOCK_1, CLOCKico_1, ALARM_2, SLEEP_1, VOLUME_1, SETTINGS_1};
     int8_t yPos    = none;
     int8_t btnNr   = none; // buttonnumber
@@ -2528,8 +2723,9 @@ void tp_pressed(uint16_t x, uint16_t y){
                             else if(_winButton.y <= y && y <= _winButton.y + _winButton.h) {yPos = RADIOico_2;   btnNr = x / _winButton.w;}
                             else if(                y <= _winButton.y)                   {yPos = VOLUME_1;}
                             break;
-        case RADIOmenue:    if(_winButton.y <= y && y <= _winButton.y + _winButton.h) {yPos = RADIOmenue_1; btnNr = x / _winButton.w;}
-        else if(                y <= _winButton.y)                   {yPos = VOLUME_1;}
+        case RADIOmenue:    if(                     y <= _winTitle.y-40)                 {yPos = RADIOmenue_1;}
+                            else if(_winButton.y <= y && y <= _winButton.y + _winButton.h)  {yPos = RADIOmenue_1;    btnNr = x / _winButton.w;}
+                            else if(                y <= _winButton.y)                   {yPos = VOLUME_1;}
                             break;
         case PLAYER:        if(_winButton.y <= y && y <= _winButton.y + _winButton.h) {yPos = PLAYER_1;     btnNr = x / _winButton.w;}
                             else if(                y <= _winButton.y)                   {yPos = VOLUME_1;}
@@ -2547,16 +2743,18 @@ void tp_pressed(uint16_t x, uint16_t y){
         case SLEEP:         if(_winButton.y <= y && y <= _winButton.y + _winButton.h) {yPos = SLEEP_1; btnNr = x / _winButton.w;}
                             break;
         case BRIGHTNESS:    if(_winButton.y <= y && y <= _winButton.y + _winButton.h) {yPos = BRIGHTNESS_1; btnNr = x / _winButton.w;}
+                            else if(                y <= _winButton.y)                {yPos = BRIGHTNESS_2;} 
                             break;
         case SETTINGS:      if(_winButton.y <= y && y <= _winButton.y + _winButton.h) {yPos = SETTINGS_1; btnNr = x / _winButton.w;}
                             break;
         default:            break;
     }
     if(yPos == none) {log_w("Touchpoint not valid x=%d, y=%d", x, y); return;}
-
+    log_i("tp_set, yPos=  %i, btn = %d", yPos, btnNr);
     switch(yPos){
         case RADIO_1:       changeState(RADIOico); break;
-        //case RADIOico_1:    changeState(RADIOmenue); break;
+        case RADIOico_1:    changeState(RADIOmenue); break;
+        case RADIOmenue_1:    changeState(RADIO); break;
         case CLOCK_1:       changeState(CLOCKico);   break;
         case RADIOico_2:    if(btnNr == 0){_releaseNr =  0; mute();}
                             else if(btnNr == 1){_releaseNr =  1; } // Mute
@@ -2566,7 +2764,7 @@ void tp_pressed(uint16_t x, uint16_t y){
                             else if(btnNr == 5){_releaseNr =  5; } // Clock
                             else if(btnNr == 6){_releaseNr =  6; } // Settings (RADIOmenue_1) => Sleep; Alarm; clocktype at start; brightness
                             changeBtn_pressed(btnNr); break;
-        case RADIOmenue_1:  if(btnNr == 0){_releaseNr = 10; stopSong(); listAudioFile();} // AudioPlayer
+        case RADIOmenue_2:  if(btnNr == 0){_releaseNr = 10; stopSong(); listAudioFile();} // AudioPlayer
                             if(btnNr == 1){_releaseNr = 11;} // Clock
                             if(btnNr == 2){_releaseNr = 12;} // Radio
                             if(btnNr == 3){_releaseNr = 13;} // Sleep
@@ -2618,7 +2816,8 @@ void tp_pressed(uint16_t x, uint16_t y){
         case BRIGHTNESS_1:  if(btnNr == 0){_releaseNr = 80;} // darker
                             if(btnNr == 1){_releaseNr = 81;} // brighter
                             if(btnNr == 2){_releaseNr = 82;} // okay
-                            changeBtn_pressed(btnNr); break;
+                            changeBtn_pressed(btnNr);break;
+        case BRIGHTNESS_2:  {uint8_t br=map(x, 0, 480, 5, 100); setBrightness(br); break;}               //set brightness on bar touch
         case SETTINGS_1:    if(btnNr == 0){_releaseNr = 90;} // Radio 21; Player_SD 10; Player network xx; BT_in xx
                             if(btnNr == 1){_releaseNr = 91;} // Output
                             if(btnNr == 2){_releaseNr = 92;} // Brightness
@@ -2627,25 +2826,34 @@ void tp_pressed(uint16_t x, uint16_t y){
                             if(btnNr == 5){_releaseNr = 95;}         // spare
                             if(btnNr == 6){_releaseNr = 96;} // return to active input
                             changeBtn_pressed(btnNr); break;
-        case VOLUME_1:      uint8_t vol=map(x, 0, 480, 0, 21);setVolume(vol); showVolumeBar(); showHeadlineVolume(_cur_volume); 
+        case VOLUME_1:      UDP.beginPacket(Display, UDP_port); //open
+                            uint8_t vol=map(x, 0, 480, 0, 21);setVolume(vol); showVolumeBar(); showHeadlineVolume(_cur_volume); 
+                            UDP.endPacket();
                             String str="displaysetvolume="; str.concat(_cur_volume); Serial.println(str); webSrv.send(str); break;
     }
+    log_i("tp_pressed is done released= %d", _releaseNr);
+    tp_released();
 }
 void tp_released(){
     log_i("tp_released, state is: %i", _state);
     const char* chptr = NULL;
     char path[256 + 12] = "/audiofiles/";
-    uint16_t w = 64, h = 64; 
+    uint16_t w = 64, h = 64;
+    UDP.beginPacket(Display, UDP_port); //open
     if(_f_sleeping == true){ //awake
         _f_sleeping = false;
         SerialPrintfln("awake");
-        setTFTbrightness(pref.getUShort("brightness"));
+        UDP.printf("tft.brightness(%d)\n",pref.getUShort("brightness"));
+        //setTFTbrightness(pref.getUShort("brightness"));
         changeState(RADIO);
         connecttohost(_lastconnectedhost);
         showLogoAndStationName();
         showFooter();
         showHeadlineItem(RADIO);
         showHeadlineVolume(_cur_volume);
+        UDP.endPacket();
+        vTaskDelay(50);
+        UDP.beginPacket(Display, UDP_port); //open
         return;
     }
 
@@ -2754,6 +2962,7 @@ void tp_released(){
                     } ; break;
     }
     _releaseNr = -1;
+    UDP.endPacket();
 }
 
 //Events from websrv

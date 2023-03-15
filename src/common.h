@@ -71,8 +71,12 @@
 #include <SD.h>
 //#include <SDFat.h>
 #include <FS.h>
-#include <WiFiClient.h>
-#include <WiFiMulti.h>
+//#include <WiFiClient.h>
+//#include <WiFiMulti.h>
+#include <WiFi.h>
+#define HOSTNAME Hostname
+#include <DNSServer.h>
+#include <WiFiManager.h> 
 #include <WiFiUdp.h>
 #include "index.h"
 #include "websrv.h"
@@ -173,6 +177,7 @@ void showFooterStaNr();
 void updateSleepTime(boolean noDecrement = false);
 void showVolumeBar();
 void showBrightnessBar();
+void setBrightness(uint8_t br);
 void showFooter();
 void display_info(const char *str, int xPos, int yPos, uint16_t color, uint16_t indent, uint16_t winHeight);
 void showStreamTitle();
@@ -214,6 +219,7 @@ void connecttoFS(const char* filename, uint32_t resumeFilePos = 0);
 void stopSong();
 void tp_released();
 void tp_pressed(uint16_t x, uint16_t y);
+void UDPsendPacket(void);
 
 
 // //prototypes (audiotask.cpp)
