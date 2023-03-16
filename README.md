@@ -1,4 +1,4 @@
-# ESP32-MiniWebRadio V2 adapted to Lyrat (es8388)
+# Schreibfaul's ESP32-MiniWebRadio V2 adapted to Lyrat (es8388) and Remote TFT-e_SPI (https://github.com/Linkenelis/Remote-TFT_eSPI) with some additions.
 
 ![Display](https://github.com/schreibfaul1/ESP32-MiniWebRadio/blob/MiniWebRadio-V2/additional_info/MiniWebRadio.jpg)
 
