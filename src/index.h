@@ -373,7 +373,11 @@ const char index_html[] PROGMEM = R"=====(
     <img src="SD/png/UpArrowYellow.png"             width="1" height="1" loading="eager" alt="Image 27" />
     <img src="SD/png/DownArrowGreen.png"            width="1" height="1" loading="eager" alt="Image 28" />
     <img src="SD/png/DownArrowYellow.png"           width="1" height="1" loading="eager" alt="Image 29" />
+<<<<<<< Updated upstream
     <img src="SD/common/MiniWebRadioV2.jpg"         width="1" height="1" loading="eager" alt="Image 30" />
+=======
+  <img src="SD/common/MiniWebRadioV2.jpg"         width="1" height="1" loading="eager" alt="Image 30" />
+>>>>>>> Stashed changes
     <img src="SD/png/PlayGreen.png"                 width="1" height="1" loading="eager" alt="Image 31" />
     <img src="SD/png/PlayYellow.png"                width="1" height="1" loading="eager" alt="Image 32" />
     <img src="SD/png/StopGreen.png"                 width="1" height="1" loading="eager" alt="Image 33" />
@@ -860,7 +864,11 @@ function ping() {
     console.log("send ping")
     tm = setTimeout(function () {
       toastr.warning('The connection to the MusicClock is interrupted! Please reload the page!')
+<<<<<<< Updated upstream
     }, 20000)
+=======
+    }, 10000)
+>>>>>>> Stashed changes
   }
 }
 
@@ -923,8 +931,11 @@ function connect() {
                               break
       case "streamtitle":     cmd.value = val
                               break
+<<<<<<< Updated upstream
       case "playing_now":     resultstr3.value = val
                               break
+=======
+>>>>>>> Stashed changes
       case "homepage":        window.open(val, '_blank') // show the station homepage
                               break
       case "icy_description": resultstr1.value = val
@@ -1764,7 +1775,11 @@ function getAudioFileList(val){
   console.log(val)
   var select = document.getElementById('seltrack')
   select.options.length = 0;
+<<<<<<< Updated upstream
   var fileNames = val.split(";")
+=======
+  var fileNames = val.split(",")
+>>>>>>> Stashed changes
   for (i = -1; i < (fileNames.length); i++) {
     opt = document.createElement('OPTION')
     if(i == -1){
