@@ -373,11 +373,7 @@ const char index_html[] PROGMEM = R"=====(
     <img src="SD/png/UpArrowYellow.png"             width="1" height="1" loading="eager" alt="Image 27" />
     <img src="SD/png/DownArrowGreen.png"            width="1" height="1" loading="eager" alt="Image 28" />
     <img src="SD/png/DownArrowYellow.png"           width="1" height="1" loading="eager" alt="Image 29" />
-<<<<<<< Updated upstream
     <img src="SD/common/MiniWebRadioV2.jpg"         width="1" height="1" loading="eager" alt="Image 30" />
-=======
-  <img src="SD/common/MiniWebRadioV2.jpg"         width="1" height="1" loading="eager" alt="Image 30" />
->>>>>>> Stashed changes
     <img src="SD/png/PlayGreen.png"                 width="1" height="1" loading="eager" alt="Image 31" />
     <img src="SD/png/PlayYellow.png"                width="1" height="1" loading="eager" alt="Image 32" />
     <img src="SD/png/StopGreen.png"                 width="1" height="1" loading="eager" alt="Image 33" />

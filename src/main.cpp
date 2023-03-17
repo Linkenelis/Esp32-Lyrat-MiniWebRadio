@@ -2039,7 +2039,7 @@ void changeState(int state){
             }
             break;
         }
-        case RADIOmenue:{
+        /*case RADIOmenue:{
             log_i("In RADIOmenue");
             showHeadlineItem(RADIOmenue);
             _pressBtn[0] = "/Buttons/MP3_Yellow.jpg";            _releaseBtn[0] = "/Buttons/MP3_Green.jpg";
@@ -2065,7 +2065,7 @@ void changeState(int state){
                 }
             }
             break;
-        }
+        }*/
         case CLOCK:{
             if(_state == ALARM){
                 pref.putUInt("alarm_time", _alarmtime);
@@ -2722,10 +2722,10 @@ void tp_pressed(uint16_t x, uint16_t y){
                             else if(_winButton.y <= y && y <= _winButton.y + _winButton.h) {yPos = RADIOico_2;   btnNr = x / _winButton.w;}
                             else if(                y <= _winButton.y)                   {yPos = VOLUME_1;}
                             break;
-        case RADIOmenue:    if(                     y <= _winTitle.y-40)                 {yPos = RADIOmenue_1;}
+        /*case RADIOmenue:    if(                     y <= _winTitle.y-40)                 {yPos = RADIOmenue_1;}
                             else if(_winButton.y <= y && y <= _winButton.y + _winButton.h)  {yPos = RADIOmenue_1;    btnNr = x / _winButton.w;}
                             else if(                y <= _winButton.y)                   {yPos = VOLUME_1;}
-                            break;
+                            break;*/
         case PLAYER:        if(_winButton.y <= y && y <= _winButton.y + _winButton.h) {yPos = PLAYER_1;     btnNr = x / _winButton.w;}
                             else if(                y <= _winButton.y)                   {yPos = VOLUME_1;}
                             break;
@@ -2752,8 +2752,8 @@ void tp_pressed(uint16_t x, uint16_t y){
     log_i("tp_set, yPos=  %i, btn = %d", yPos, btnNr);
     switch(yPos){
         case RADIO_1:       changeState(RADIOico); break;
-        case RADIOico_1:    changeState(RADIOmenue); break;
-        case RADIOmenue_1:    changeState(RADIO); break;
+        case RADIOico_1:    changeState(RADIO); break;
+        //case RADIOmenue_1:    changeState(RADIO); break;
         case CLOCK_1:       changeState(CLOCKico);   break;
         case RADIOico_2:    if(btnNr == 0){_releaseNr =  0; mute();}
                             else if(btnNr == 1){_releaseNr =  1; } // Mute
@@ -2763,14 +2763,14 @@ void tp_pressed(uint16_t x, uint16_t y){
                             else if(btnNr == 5){_releaseNr =  5; } // Clock
                             else if(btnNr == 6){_releaseNr =  6; } // Settings (RADIOmenue_1) => Sleep; Alarm; clocktype at start; brightness
                             changeBtn_pressed(btnNr); break;
-        case RADIOmenue_2:  if(btnNr == 0){_releaseNr = 10; stopSong(); listAudioFile();} // AudioPlayer
+        /*case RADIOmenue_2:  if(btnNr == 0){_releaseNr = 10; stopSong(); listAudioFile();} // AudioPlayer
                             if(btnNr == 1){_releaseNr = 11;} // Clock
                             if(btnNr == 2){_releaseNr = 12;} // Radio
                             if(btnNr == 3){_releaseNr = 13;} // Sleep
                             if(TFT_CONTROLLER != 2){
                             if(btnNr == 4){_releaseNr = 14;} // Brightness
                             }
-                            changeBtn_pressed(btnNr); break;
+                            changeBtn_pressed(btnNr); break;*/
         case CLOCKico_1:    if(btnNr == 0){_releaseNr = 20;} // Alarm
                             if(btnNr == 1){_releaseNr = 21;} // Sleep
                             if(btnNr == 2){_releaseNr = 22;} // Radio
@@ -2870,14 +2870,14 @@ void tp_released(){
         case  6:    changeState(SETTINGS); break;                                   //  Settings
 
         //  Will be removed ***  RADIOmenue ******************************
-        case 10:    changeState(PLAYER); webSrv.send("StatePlayer");
+        /*case 10:    changeState(PLAYER); webSrv.send("StatePlayer");
                     if(setAudioFolder("/audiofiles")) chptr = listAudioFile();
                     if(chptr) strcpy(_afn, chptr);
                     showFileName(_afn); break;
         case 11:    changeState(CLOCK); break;
         case 12:    changeState(RADIO); webSrv.send("StateRadio");break;
         case 13:    changeState(SLEEP); break;
-        case 14:    changeState(BRIGHTNESS); break;
+        case 14:    changeState(BRIGHTNESS); break;*/
 
         // CLOCKico ******************************
         case 20:    changeState(ALARM); break;
