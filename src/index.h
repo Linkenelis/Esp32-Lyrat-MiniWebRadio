@@ -860,11 +860,7 @@ function ping() {
     console.log("send ping")
     tm = setTimeout(function () {
       toastr.warning('The connection to the MusicClock is interrupted! Please reload the page!')
-<<<<<<< Updated upstream
     }, 20000)
-=======
-    }, 10000)
->>>>>>> Stashed changes
   }
 }
 
@@ -927,11 +923,8 @@ function connect() {
                               break
       case "streamtitle":     cmd.value = val
                               break
-<<<<<<< Updated upstream
       case "playing_now":     resultstr3.value = val
                               break
-=======
->>>>>>> Stashed changes
       case "homepage":        window.open(val, '_blank') // show the station homepage
                               break
       case "icy_description": resultstr1.value = val
@@ -1771,11 +1764,7 @@ function getAudioFileList(val){
   console.log(val)
   var select = document.getElementById('seltrack')
   select.options.length = 0;
-<<<<<<< Updated upstream
   var fileNames = val.split(";")
-=======
-  var fileNames = val.split(",")
->>>>>>> Stashed changes
   for (i = -1; i < (fileNames.length); i++) {
     opt = document.createElement('OPTION')
     if(i == -1){

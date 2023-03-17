@@ -3001,7 +3001,7 @@ void WEBSRV_onCommand(const String cmd, const String param, const String arg){  
     if(cmd == "next_track")         {mp3playall=true; _f_eof=true; next_track_needed(true); webSrv.reply("OK\n"); return;}
     if(cmd == "prev_track")         {mp3playall=true; _f_eof=true; next_track_needed(false); webSrv.reply("OK\n"); return;}
     if(cmd == "audiotracknew")      {webSrv.reply("generating new tracklist...\n"); nbroftracks=0;File root = SD_MMC.open("/audiofiles");tracklist(root, 0); return;}
-    if(cmd == "shuffle")            {if(shuffle) {shuffle=false; webSrv.reply("Shuffle off\n");}else{shuffle=true; webSrv.reply("Shuffle on\n");} /*changeBtn_released(5);*/return;}
+    if(cmd == "shuffle")            {_releaseNr=45; tp_released();}//{if(shuffle) {shuffle=false; webSrv.reply("Shuffle off\n");}else{webSrv.reply("Shuffle on\n");} changeBtn_released(5); return;}
     if(cmd == "getshuffle"){        webSrv.reply(String(int(shuffle)).c_str()); return;}
     if(cmd == "uploadfile"){        _filename = param;  return;}
     if(cmd == "upvolume"){          str = "Volume is now " + (String)upvolume(); webSrv.reply(str.c_str()); SerialPrintfln("%s", str.c_str()); return;}
