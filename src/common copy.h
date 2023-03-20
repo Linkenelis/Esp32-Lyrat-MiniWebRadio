@@ -4,8 +4,8 @@
 #pragma once
 
 
-#define _SSID           "CK"                        // Your WiFi credentials here
-#define _PW             "Sup3r3r0s47"
+#define _SSID           ""                        // Your WiFi credentials here
+#define _PW             ""
 #define TZName          "CET-1CEST,M3.5.0,M10.5.0/3"    // Timezone (more TZNames in "rtime.cpp")
 #define DECODER         1                               // (0)VS1053 , (1)SW DECODER DAC via I2S
 #define TFT_CONTROLLER  3                               // (0)ILI9341, (1)HX8347D, (2)ILI9486, (3)ILI9488

@@ -22,6 +22,18 @@
 // OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE
 
 #include "common.h"
+#include "pins.h"
+
+/*
+//#include "network.h"
+#include "version_of_servers.h"
+#include <netdb.h>
+//#include "dmesg_functions.h"
+//#include "perfMon.h"  
+#include "file_system.h"
+//#include "time_functions.h"               // file_system.h is needed prior to #including time_functions.h if you want to store the default parameters
+#include "ftpClient.h"                    // file_system.h is needed prior to #including ftpClient.h if you want to store the default parameters
+*/
 
 
 //global variables
@@ -1705,6 +1717,12 @@ void savefile(const char* fileName, uint32_t contentLength){ //save the uploadfi
         else webSrv.reply("failure");
         if(strcmp(fn, "/stations.csv") == 0) saveStationsToNVS();
     }
+    UDP.endPacket();
+    vTaskDelay(50);
+    UDP.beginPacket(Display, UDP_port); //open
+    UDP.printf("FTP.SD()"); //make sure FTP is on SD
+    UDP.endPacket();
+    //TODO    ftpPut(fn, fn, "SDFTPpwd", "SDFTP", 21, Display);
 }
 String setTone(){ // vs1053
     uint8_t ha =pref.getUShort("toneha");
@@ -1997,6 +2015,7 @@ void changeState(int state){
         case RADIO:{
             clearAll();
             showHeadlineItem(RADIO);
+            setStation(_cur_station);
             showHeadlineVolume(_cur_volume);
             UDP.printf("setClock.Show_time(1)\n");
             showLogoAndStationName();
@@ -2512,7 +2531,6 @@ void loop() {
     ftpSrv.handleFTP();
     timer_stuff();
     UDP_Check();
-
 }
 /***********************************************************************************************************************
 *                                                    E V E N T S                                                       *
@@ -3001,7 +3019,7 @@ void WEBSRV_onCommand(const String cmd, const String param, const String arg){  
     if(cmd == "next_track")         {mp3playall=true; _f_eof=true; next_track_needed(true); webSrv.reply("OK\n"); return;}
     if(cmd == "prev_track")         {mp3playall=true; _f_eof=true; next_track_needed(false); webSrv.reply("OK\n"); return;}
     if(cmd == "audiotracknew")      {webSrv.reply("generating new tracklist...\n"); nbroftracks=0;File root = SD_MMC.open("/audiofiles");tracklist(root, 0); return;}
-    if(cmd == "shuffle")            {_releaseNr=45; tp_released();}//{if(shuffle) {shuffle=false; webSrv.reply("Shuffle off\n");}else{webSrv.reply("Shuffle on\n");} changeBtn_released(5); return;}
+    if(cmd == "shuffle")            {if(_state == PLAYER){_releaseNr=45; tp_released(); return;} else {if(shuffle) {shuffle=false; webSrv.reply("Shuffle off\n");}else{webSrv.reply("Shuffle on\n");} return;}}
     if(cmd == "getshuffle"){        webSrv.reply(String(int(shuffle)).c_str()); return;}
     if(cmd == "uploadfile"){        _filename = param;  return;}
     if(cmd == "upvolume"){          str = "Volume is now " + (String)upvolume(); webSrv.reply(str.c_str()); SerialPrintfln("%s", str.c_str()); return;}
@@ -3023,7 +3041,7 @@ void WEBSRV_onCommand(const String cmd, const String param, const String arg){  
     if(cmd == "stop"){              _resumeFilePos = audioStopSong(); webSrv.reply("OK\n"); return;}
     if(cmd == "resumefile"){        if(!_lastconnectedfile) webSrv.reply("nothing to resume\n");
                                     else {audiotrack(_lastconnectedfile, _resumeFilePos); webSrv.reply("OK\n");} return;}
-    //if(cmd == "artsong"){           webSrv.send("playing_now="+artsong);; return;}
+    if(cmd == "artsong"){           webSrv.send("playing_now="+artsong); return;}
     if(cmd == "test"){              sprintf(_chbuf, "free heap: %u, Inbuff filled: %u, Inbuff free: %u\n", ESP.getFreeHeap(), audioInbuffFilled(), audioInbuffFree()); webSrv.reply(_chbuf); return;}
 
     log_e("unknown HTMLcommand %s", cmd.c_str());

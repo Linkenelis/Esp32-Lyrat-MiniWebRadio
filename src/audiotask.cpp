@@ -1,10 +1,13 @@
 // created: 10.02.2022
 // updated: 13.02.2022
 
-#include "common.h"
+//#include "common.h"
+#include "pins.h"
 #include "SPIFFS.h"
 #include "FFat.h"
 #include "WiFiClientSecure.h"
+
+
 
 #if DECODER == 0
     #include "vs1053_ext.h"     // see my repository at github "ESP32-vs1053_ext"

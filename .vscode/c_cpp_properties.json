@@ -10,6 +10,7 @@
             "includePath": [
                 "I:/Github/Esp32-Lyrat-MiniWebRadio/include",
                 "I:/Github/Esp32-Lyrat-MiniWebRadio/src",
+                "I:/Github/Esp32-Lyrat-MiniWebRadio/lib/servers",
                 "I:/Github/Esp32-Lyrat-MiniWebRadio/lib/ftpsrv",
                 "I:/Github/Esp32-Lyrat-MiniWebRadio/lib/rtime",
                 "I:/Github/Esp32-Lyrat-MiniWebRadio/lib/websrv",
@@ -229,6 +230,7 @@
                 "path": [
                     "I:/Github/Esp32-Lyrat-MiniWebRadio/include",
                     "I:/Github/Esp32-Lyrat-MiniWebRadio/src",
+                    "I:/Github/Esp32-Lyrat-MiniWebRadio/lib/servers",
                     "I:/Github/Esp32-Lyrat-MiniWebRadio/lib/ftpsrv",
                     "I:/Github/Esp32-Lyrat-MiniWebRadio/lib/rtime",
                     "I:/Github/Esp32-Lyrat-MiniWebRadio/lib/websrv",

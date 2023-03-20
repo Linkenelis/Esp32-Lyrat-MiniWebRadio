@@ -4,8 +4,8 @@
 #pragma once
 
 
-#define _SSID           "CK"                        // Your WiFi credentials here
-#define _PW             "Sup3r3r0s47"
+#define _SSID           ""                        // Your WiFi credentials here
+#define _PW             ""
 #define TZName          "CET-1CEST,M3.5.0,M10.5.0/3"    // Timezone (more TZNames in "rtime.cpp")
 #define DECODER         1                               // (0)VS1053 , (1)SW DECODER DAC via I2S
 #define TFT_CONTROLLER  3                               // (0)ILI9341, (1)HX8347D, (2)ILI9486, (3)ILI9488, (4)Remote Display
@@ -88,7 +88,6 @@
 #include "soc/rtc_wdt.h"
 //#include "fonts/Arial22num.h"
 #include "ES8388.h" 
-#include <WiFiUdp.h>
 #include <esp_task_wdt.h>
 #include "soc/timer_group_struct.h"
 #include "soc/timer_group_reg.h"
@@ -100,17 +99,17 @@
 
 
 
-
+/*
 
 // Digital I/O used
-/*#define VS1053_CS     2
+#define VS1053_CS     2
 #define VS1053_DCS     4
 #define VS1053_DREQ   32
 #define TFT_CS        22
 #define TFT_DC        21
 #define TFT_BL        0
 #define TP_IRQ        33
-#define TP_CS         15*/
+#define TP_CS         15
 //#define SD_MMC_D0      2  // cannot be changed
 //#define SD_MMC_CLK    14  // cannot be changed
 //#define SD_MMC_CMD    15  // cannot be changed
@@ -119,12 +118,12 @@
 #define VS1053_MISO   2  // SD
 #define VS1053_SCK    14  //SD
 //#define IR_PIN        3
-/*#define SPI_MOSI      13  // TFT and TP (HSPI)
+#define SPI_MOSI      13  // TFT and TP (HSPI)
 #define SPI_MISO      12  // TFT and TP (HSPI)
 #define SPI_SCK       14  // TFT and TP (HSPI)
 #define VS1053_MOSI   23  // VS1053     (VSPI)
 #define VS1053_MISO   19  // VS1053     (VSPI)
-#define VS1053_SCK    18  // VS1053     (VSPI)*/
+#define VS1053_SCK    18  // VS1053     (VSPI)
 #define I2S_DOUT      26    //26    //25  // DAC: I2S_DIN
 #define I2S_BCLK      5
 #define I2S_LRC       25    //26
@@ -144,7 +143,7 @@
 #define VOLUP         27
 #define VOLDWN        13
 #define BOOT          2
-
+*/
 
 #define SerialPrintfln(...) {xSemaphoreTake(mutex_rtc, portMAX_DELAY); \
                             Serial.printf("%s ", rtc.gettime_s()); \
