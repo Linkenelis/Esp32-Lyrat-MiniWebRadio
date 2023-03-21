@@ -7,7 +7,7 @@
 #include "FFat.h"
 #include "WiFiClientSecure.h"
 
-
+#define DECODER         1                               // (0)VS1053 , (1)SW DECODER DAC via I2S
 
 #if DECODER == 0
     #include "vs1053_ext.h"     // see my repository at github "ESP32-vs1053_ext"
@@ -20,7 +20,6 @@
     Audio audio;
     ES8388 es;
 #endif
-
 
 /***********************************************************************************************************************
 *                                      A U D I O _ T A S K        V S 1 0 5 3                                          *

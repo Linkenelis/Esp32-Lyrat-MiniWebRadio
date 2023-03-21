@@ -3,25 +3,21 @@
 
 #pragma once
 
+//#define TZName          "CET-1CEST,M3.5.0,M10.5.0/3"    // Timezone (more TZNames in "rtime.cpp")
+#define DECODER         Decoder                         // (0)VS1053 , (1)SW DECODER DAC via I2S
+#define TFT_CONTROLLER  TFT_controller                  // (0)ILI9341, (1)HX8347D, (2)ILI9486, (3)ILI9488
 
-#define _SSID           ""                        // Your WiFi credentials here
-#define _PW             ""
-#define TZName          "CET-1CEST,M3.5.0,M10.5.0/3"    // Timezone (more TZNames in "rtime.cpp")
-#define DECODER         1                               // (0)VS1053 , (1)SW DECODER DAC via I2S
-#define TFT_CONTROLLER  3                               // (0)ILI9341, (1)HX8347D, (2)ILI9486, (3)ILI9488, (4)Remote Display
-#define TFT_FREQUENCY   40000000                        // 27000000, 40000000, 80000000
-#define TFT_ROTATION    3                               // 0 ... 3
-#define TP_VERSION      4                               // (0)ILI9341, (1)ILI9341RPI, (2)HX8347D, (3)ILI9486RPI, (4)ILI9488
-#define TP_ROTATION     3                               // 0 ... 3
-#define FTP_USERNAME    "esp32"                         // user and pw in FTP Client
-#define FTP_PASSWORD    "esp32"
-#define HOSTNAME Hostname
+//#define TFT_ROTATION    3                               // 0 ... 3
+//#define       4                               // (0)ILI9341, (1)ILI9341RPI, (2)HX8347D, (3)ILI9486RPI, (4)ILI9488
+//#define TP_ROTATION     3                               // 0 ... 3
+#define FTP_USERNAME    FTP_username                         // user and pw in FTP Client
+#define FTP_PASSWORD    FTP_password
+#define HOSTNAME        Hostname
 
 
 
 
 // All RGB565 Color definitions
-// remove all those in TFT_eSPI.h
 #define TFT_AQUAMARINE      0x7FFA // 127, 255, 212
 #define TFT_BEIGE           0xF7BB // 245, 245, 220
 #define TFT_BLACK           0x0000 //   0,   0,   0
@@ -69,12 +65,8 @@
 #include <SPI.h>
 #include <SD_MMC.h>
 #include <SD.h>
-//#include <SDFat.h>
 #include <FS.h>
-//#include <WiFiClient.h>
-//#include <WiFiMulti.h>
 #include <WiFi.h>
-#define HOSTNAME Hostname
 #include <DNSServer.h>
 #include <WiFiManager.h> 
 #include <WiFiUdp.h>
@@ -82,68 +74,15 @@
 #include "websrv.h"
 #include "rtime.h"
 #include "IR.h"
-//#include "tft.h"
 #include "BluetoothA2DPSink.h"  //BT-In
 #include "ESP32FtpServer.h"
 #include "soc/rtc_wdt.h"
 //#include "fonts/Arial22num.h"
-#include "ES8388.h" 
+//#include "ES8388.h" 
 #include <esp_task_wdt.h>
 #include "soc/timer_group_struct.h"
 #include "soc/timer_group_reg.h"
-//#include <TFT_eSPI.h>
-//#include <TJpg_Decoder.h>
-
-
-
-
-
-
-/*
-
-// Digital I/O used
-#define VS1053_CS     2
-#define VS1053_DCS     4
-#define VS1053_DREQ   32
-#define TFT_CS        22
-#define TFT_DC        21
-#define TFT_BL        0
-#define TP_IRQ        33
-#define TP_CS         15
-//#define SD_MMC_D0      2  // cannot be changed
-//#define SD_MMC_CLK    14  // cannot be changed
-//#define SD_MMC_CMD    15  // cannot be changed
-#define SD_CS         13    // 5
-#define VS1053_MOSI   15  // SD
-#define VS1053_MISO   2  // SD
-#define VS1053_SCK    14  //SD
-//#define IR_PIN        3
-#define SPI_MOSI      13  // TFT and TP (HSPI)
-#define SPI_MISO      12  // TFT and TP (HSPI)
-#define SPI_SCK       14  // TFT and TP (HSPI)
-#define VS1053_MOSI   23  // VS1053     (VSPI)
-#define VS1053_MISO   19  // VS1053     (VSPI)
-#define VS1053_SCK    18  // VS1053     (VSPI)
-#define I2S_DOUT      26    //26    //25  // DAC: I2S_DIN
-#define I2S_BCLK      5
-#define I2S_LRC       25    //26
-#define I2S_MCLK       0  // mostly not used
-#define I2S_ASDOUT      35  // mostly not used
-
-// I2C GPIOs
-#define IIC_CLK       23
-#define IIC_DATA      18
-
-// LyraT_buttons and specials
-#define GPIO_PA_EN    21
-#define SET           32
-#define REC           36
-#define MODE          39
-#define PLAY          33
-#define VOLUP         27
-#define VOLDWN        13
-#define BOOT          2
-*/
+#include "ssl_client.h"
 
 #define SerialPrintfln(...) {xSemaphoreTake(mutex_rtc, portMAX_DELAY); \
                             Serial.printf("%s ", rtc.gettime_s()); \
@@ -162,7 +101,7 @@ extern boolean audioTask_runs;
 extern boolean BTTask_runs;
 extern boolean _Audio;
 
-// //prototypes (main.cpp)
+//prototypes (main.cpp)
 boolean defaultsettings();
 boolean saveStationsToNVS();
 void setTFTbrightness(uint8_t duty);

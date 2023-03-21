@@ -41,7 +41,7 @@
 
     // ----- TUNNING PARAMETERS -----
 
-    #define DMESG_CIRCULAR_QUEUE_LENGTH 256 // how may massages we keep on circular queue
+    #define DMESG_CIRCULAR_QUEUE_LENGTH 5  //reduced from 256 I ran out of mem // how may massages we keep on circular queue
     #define DMESG_MAX_MESSAGE_LENGTH 100    // max lenght of a message
 
 

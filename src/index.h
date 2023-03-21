@@ -352,12 +352,12 @@ const char index_html[] PROGMEM = R"=====(
     <img src="SD/png/StationYellow.png"             width="1" height="1" loading="eager" alt="Image 04" />
     <img src="SD/png/JukeboxGreen.png"              width="1" height="1" loading="eager" alt="Image 05" />
     <img src="SD/png/JukeboxYellow.png"             width="1" height="1" loading="eager" alt="Image 06" />
-    <img src="SD/png/InternetGreen.png"             width="1" height="1" loading="eager" alt="Image 06" />
-    <img src="SD/png/InternetYellow.png"            width="1" height="1" loading="eager" alt="Image 07" />
-    <img src="SD/png/InfoGreen.png"                 width="1" height="1" loading="eager" alt="Image 08" />
-    <img src="SD/png/InfoYellow.png"                width="1" height="1" loading="eager" alt="Image 09" />
-    <img src="SD/png/ToneGreen.png"                 width="1" height="1" loading="eager" alt="Image 10" />
-    <img src="SD/png/ToneYellow.png"                width="1" height="1" loading="eager" alt="Image 11" />
+    <img src="SD/png/InternetGreen.png"             width="1" height="1" loading="eager" alt="Image 07" />
+    <img src="SD/png/InternetYellow.png"            width="1" height="1" loading="eager" alt="Image 08" />
+    <img src="SD/png/InfoGreen.png"                 width="1" height="1" loading="eager" alt="Image 09" />
+    <img src="SD/png/InfoYellow.png"                width="1" height="1" loading="eager" alt="Image 10" />
+    <img src="SD/png/ToneGreen.png"                 width="1" height="1" loading="eager" alt="Image 11" />
+    <img src="SD/png/ToneYellow.png"                width="1" height="1" loading="eager" alt="Image 12" />
     <img src="SD/png/VolMinGreen.png"               width="1" height="1" loading="eager" alt="Image 15" />
     <img src="SD/png/VolMinYellow.png"              width="1" height="1" loading="eager" alt="Image 16" />
     <img src="SD/png/VolPlusGreen.png"              width="1" height="1" loading="eager" alt="Image 17" />

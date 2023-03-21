@@ -21,7 +21,7 @@
     #error "You can't use ftpClient.h without file_system.h. Either #include file_system.h prior to including ftpClient.h or exclude ftpClient.h"
   #endif
   #ifndef __PERFMON__
-    #pragma message "Compiling ftpClient.h without performance monitors (perfMon.h)"
+    //#pragma message "Compiling ftpClient.h without performance monitors (perfMon.h)"
   #endif
 
 
@@ -33,7 +33,7 @@
     
     // TUNNING PARAMETERS
 
-    #define FTP_CLIENT_TIME_OUT 3000              // 3000 ms = 3 sec 
+    #define FTP_CLIENT_TIME_OUT 15000              // 15000 ms = 15 sec 
     #define FTP_CMD_BUFFER_SIZE 300               // sending FTP commands and readinf replies from the server
     #define FTP_CLIENT_BUFFER_SIZE TCP_SND_BUF    // for file transfer, 5744 bytes is maximum block that ESP32 can send
     #define MAX_ETC_FTP_FTPCLIENT_CF 1 * 1024     // 1 KB will usually do - sendmail reads the whole /etc/mail/sendmail.cf file in the memory 
@@ -87,13 +87,13 @@
           close (controlConnectionSocket);
           return "recv() error: " + e;
         }
-        // DEBUG: Serial.printf ("ftpServerReply = |%s|\n", buffer);
+        DEBUG: Serial.printf ("ftpServerReply = |%s|\n", buffer);
         char *endOfCommand = strstr (buffer, "\n");
         while (endOfCommand) {
           *endOfCommand = 0;
           // process command in the buffer
           {
-            // DEBUG: Serial.printf ("ftpServerReply = |%s|\n", buffer);
+            //DEBUG: Serial.printf ("ftpServerReply = |%s|\n", buffer);
             #define ftpReplyIs(X) (strstr (buffer, X) == buffer)
 
                   if (ftpReplyIs ("220 "))  { // server wants client to log in

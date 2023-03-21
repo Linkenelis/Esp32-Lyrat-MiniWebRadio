@@ -24,16 +24,16 @@
 #include "common.h"
 #include "pins.h"
 
-/*
-//#include "network.h"
-#include "version_of_servers.h"
-#include <netdb.h>
+
+#include "network.h"
+//#include "version_of_servers.h"
+//#include <netdb.h>
 //#include "dmesg_functions.h"
 //#include "perfMon.h"  
 #include "file_system.h"
 //#include "time_functions.h"               // file_system.h is needed prior to #including time_functions.h if you want to store the default parameters
 #include "ftpClient.h"                    // file_system.h is needed prior to #including ftpClient.h if you want to store the default parameters
-*/
+
 
 
 //global variables
@@ -59,7 +59,7 @@ char           _chbuf[512];
 char           _myIP[25];
 char           _afn[256];                // audioFileName
 char           _path[128];
-char           _prefix[5]      = "/s";
+char           _prefix[5]      = "/m";
 char*          _lastconnectedfile = nullptr;
 char*          _lastconnectedhost = nullptr;
 char*          _stationURL = nullptr;
@@ -162,11 +162,12 @@ TaskHandle_t BTTaskHandler;
 
 
 SemaphoreHandle_t  mutex_rtc;
-SemaphoreHandle_t  mutex_display;
+//SemaphoreHandle_t  mutex_display;
+
 
 portMUX_TYPE timerMux = portMUX_INITIALIZER_UNLOCKED;
-volatile bool screen_touched = false;
-portMUX_TYPE mux = portMUX_INITIALIZER_UNLOCKED;
+//volatile bool screen_touched = false;
+//portMUX_TYPE mux = portMUX_INITIALIZER_UNLOCKED;
 
 #define AA_FONT_SMALL 20
 #define AA_FONT_NORMAL 32
@@ -188,11 +189,11 @@ void IRAM_ATTR onTimer() {
   interruptCounter++;
   portEXIT_CRITICAL_ISR(&timerMux); 
 }
-void IRAM_ATTR touched() {
+/*void IRAM_ATTR touched() {
     portENTER_CRITICAL(&mux);
     screen_touched=true;
     portEXIT_CRITICAL(&mux);
-}
+}*/
 /*Button Actions*/
 void REC_but(void){
     Serial.println("Rec");
@@ -380,114 +381,6 @@ uint16_t getMinuteOfTheDay(){ // counts at 00:00, from 0...23*60+59
 //const char* ssid = WIFI_SSID;
 //const char* password =  WIFI_PASS;
 
-void UDPsend(const char* msg)   //for "tft.xxx(text,int1,int2,int3,int4,int5,int6,int7)" as 1 char* message
-{
-  char *NewPacket;
-  //sprintf(NewPacket, "%s()\n", msg);
-  strcpy(NewPacket, msg);
-  strcat(NewPacket, "\n");
-  if(strlen(packettosend)+strlen(NewPacket)>=255)
-  {
-    UDPsendPacket();    //send full packettosend now
-  }
-  sprintf(packettosend, "%s%s", packettosend, NewPacket);
-  /*UDP.beginPacket(Display, UDP_port);
-  UDP.printf(msg);
-  if(UDP.endPacket()<1){vTaskDelay(50); UDPsend(msg);}
-  vTaskDelay(20);*/
-}
-void UDPsend(const char* msg, int a, int b, const char* jpg)        //for TJpgDec.etc, x, y, path
-{
-  char *NewPacket;
-  sprintf(NewPacket, "%s(%d,%d,%s)\n", msg, a, b, jpg);
-  if(strlen(packettosend)+strlen(NewPacket)>=255)
-  {
-    UDPsendPacket();    //send full packettosend now
-  }
-  sprintf(packettosend, "%s%s", packettosend, NewPacket);
-  /*UDP.beginPacket(Display, UDP_port);
-  // UDP.printf("TJpgDec.drawFsJpg(10,100,/Buttons/Button_Download_Red.jpg");
-  UDP.printf("%s(%d,%d,%s)",msg,a,b,jpg);
-  if(UDP.endPacket()<1){vTaskDelay(100); UDPsend(msg,a,b,jpg);}
-  vTaskDelay(50);*/
-}
-void UDPsend(const char* msg, int a, int b, int c, int d, int e)  //tft.xxx, 5 ints, char* is created
-{
-  char *NewPacket;
-  sprintf(NewPacket, "%s(%d,%d,%d,%d,%d)\n", msg, a, b, c, d, e);
-  if(strlen(packettosend)+strlen(NewPacket)>=255)
-  {
-    UDPsendPacket();    //send full packettosend now
-  }
-  sprintf(packettosend, "%s%s", packettosend, NewPacket);
-  /*UDP.beginPacket(Display, UDP_port);
-  UDP.printf("%s(%d,%d,%d,%d,%d)",msg,a,b,c,d,e);
-  if(UDP.endPacket()<1){vTaskDelay(50); UDPsend(msg,a,b,c,d,e);}
-  vTaskDelay(20);*/
-}
-void UDPsend(const char* msg, int a, int b)  //tft.xxx, 2 ints, char* is created
-{
-  char *NewPacket;
-  sprintf(NewPacket, "%s(%d,%d)\n", msg, a, b);
-  if(strlen(packettosend)+strlen(NewPacket)>=255)
-  {
-    UDPsendPacket();    //send full packettosend now
-  }
-  sprintf(packettosend, "%s%s", packettosend, NewPacket);
-  /*UDP.beginPacket(Display, UDP_port);
-  UDP.printf("%s(%d,%d)",msg,a,b);
-  if(UDP.endPacket()<1){vTaskDelay(50); UDPsend(msg, a, b);}
-  vTaskDelay(20);*/
-}
-void UDPsend(const char* msg, const char* str)  //tft.xxx, const Char* , char* is created
-{
-  char *NewPacket;
-  sprintf(NewPacket, "%s(%d,%d,%s)\n", msg, str);
-  if(strlen(packettosend)+strlen(NewPacket)>=255)
-  {
-    UDPsendPacket();    //send full packettosend now
-  }
-  sprintf(packettosend, "%s%s", packettosend, NewPacket);
-  /*UDP.beginPacket(Display, UDP_port);
-  UDP.printf("%s(%s)",msg,str);
-  if(UDP.endPacket()<1){vTaskDelay(50); UDPsend(msg,str);}
-  vTaskDelay(20);*/
-}
-void UDPsend(const char* msg, const char* str,int a, int b)  //spr.printToSprite(adapted version with x and y), const Char* , char* is created
-{
-    char *NewPacket;
-  sprintf(NewPacket, "%s(%s,%d,%d)\n", msg, str, a, b);
-  if(strlen(packettosend)+strlen(NewPacket)>=255)
-  {
-    UDPsendPacket();    //send full packettosend now
-  }
-  sprintf(packettosend, "%s%s", packettosend, NewPacket);
-  /*UDP.beginPacket(Display, UDP_port);
-  UDP.printf("%s(%s,%d,%d)",msg,str,a,b);
-  if(UDP.endPacket()<1){vTaskDelay(50); UDPsend(msg, str, a, b);}
-  vTaskDelay(20);*/
-}
-void UDPsend(const char* msg, String str)  //tft.xxx, const Char* , char* is created
-{
-  char *NewPacket;
-  sprintf(NewPacket, "%s(%s)\n", msg, str);
-  if(strlen(packettosend)+strlen(NewPacket)>=255)
-  {
-    UDPsendPacket();    //send full packettosend now
-  }
-  sprintf(packettosend, "%s%s", packettosend, NewPacket);
-  /*UDP.beginPacket(Display, UDP_port);
-  UDP.printf("%s(%s)",msg,str);
-  if(UDP.endPacket()<1){vTaskDelay(50); UDPsend(msg,str);}
-  vTaskDelay(20);*/
-}
-void UDPsendPacket()
-{
-UDP.beginPacket(Display, UDP_port);
-  UDP.printf(packettosend);
-  if(UDP.endPacket()<1){vTaskDelay(50); UDPsend(packettosend);}
-  packettosend="";
-}
 void UDP_Check(void)
 {
   int packetSize = UDP.parsePacket();
@@ -748,15 +641,7 @@ void showHeadlineVolume(uint8_t vol){
     UDP.beginPacket(Display, UDP_port); //open
 }
 void showHeadlineTime(){
-    /*UDPsend("tft.showTime(0)"); //remote display can show time independently 0 to hide it
-    UDPsend("spr.setTextColor",TFT_GREENYELLOW,TFT_BLACK);
-    //UDPsend("spr.loadFont(20)");
-    
-    if(!_f_rtc) {UDPsend("spr.printToSprite(No Time)",_winTime.x, _winTime.y);} // has rtc the correct time? 
-    //strftime(timc, 12, " %H:%M:%S ", timeinfo);
-    //spr.printToSprite(timc);  //gettime_s
-    UDPsend("spr.printToSprite", gettime_s(),_winTime.x, _winTime.y);
-    UDPsend("spr.unloadFont()");*/
+
 }
 void showHeadlineItem(uint8_t idx){
     if(fontLoaded!=AA_FONT_SMALL)
@@ -868,9 +753,9 @@ void showStreamTitle(){
     }
     if(ST.length()>50) {ST=ST.substring(0,49);}if(ST2.length()>50) {ST2=ST2.substring(0,49);}
     int font;
-    if (ST.length()<=20 || ST2.length()<=20) {font=AA_FONT_LARGE;}
-    if (ST.length()>20 || ST2.length()>20) {font=AA_FONT_NORMAL;}
-    if (ST.length()>30 || ST2.length()>30) {font=AA_FONT_SMALL;}
+    if (ST.length()<=18 || ST2.length()<=18) {font=AA_FONT_LARGE;}
+    if (ST.length()>18 || ST2.length()>18) {font=AA_FONT_NORMAL;}
+    if (ST.length()>27 || ST2.length()>27) {font=AA_FONT_SMALL;}
     if(fontLoaded!=font)
     {   
         UDP.printf("tft.loadFont(%d)\n",font);
@@ -1263,85 +1148,18 @@ const char* listAudioFile(){
     }
     return NULL;
 }
-/*
-bool sendAudioList2Web(const char* audioDir){       //cannot do 1000 tracks, this is 1 string of text; Directories?
-Serial.println("sendAudioList2Web");
-    if(!setAudioFolder(audioDir)) return false;
-    const char* FileName = NULL;
-    String str = "AudioFileList=";
-    uint8_t i = 0;
-    while(true){
-        FileName = listAudioFile();
-        if(FileName){
-            if(i) str += ";";
-            str += (String)FileName;
-            i++;    //max35 for now
-            if(i==35) break;
-        }
-        else break;
-    }
-     log_i("%s", str.c_str());
-    webSrv.send((const char*)str.c_str());
-    return true;
-}*/
-/*
-bool sendAudioList2Web(const char* audioDir){       //cannot do 1000 tracks
-Serial.println("sendAudioList2Web");
-    send_tracks_to_web();
-    return true;
-}*/
+
 /***********************************************************************************************************************
 *                                         C O N N E C T   TO   W I F I                                                 *
 ***********************************************************************************************************************/
-/*
-bool connectToWiFi(){
-    String s_ssid = "", s_password = "", s_info = "";
-    wifiMulti.addAP(_SSID, _PW);                // SSID and PW in code
-    WiFi.setHostname("MiniWebRadio");
-    File file = SD_MMC.open("/networks.csv"); // try credentials given in "/networks.txt"
-    if(file){                                         // try to read from SD
-        String str = "";
-        while(file.available()){
-            str = file.readStringUntil('\n');         // read the line
-            if(str[0] == '*' ) continue;              // ignore this, goto next line
-            if(str[0] == '\n') continue;              // empty line
-            if(str[0] == ' ')  continue;              // space as first char
-            if(str.indexOf('\t') < 0) continue;       // no tab
-            str += "\t";
-            uint p = 0, q = 0;
-            s_ssid = "", s_password = "", s_info = "";
-            for(int i = 0; i < str.length(); i++){
-                if(str[i] == '\t'){
-                    if(p == 0) s_ssid     = str.substring(q, i);
-                    if(p == 1) s_password = str.substring(q, i);
-                    if(p == 2) s_info     = str.substring(q, i);
-                    p++;
-                    i++;
-                    q = i;
-                }
-            }
-            //log_i("s_ssid=%s  s_password=%s  s_info=%s", s_ssid.c_str(), s_password.c_str(), s_info.c_str());
-            if(s_ssid == "") continue;
-            if(s_password == "") continue;
-            wifiMulti.addAP(s_ssid.c_str(), s_password.c_str());
-        }
-        file.close();
-    }
-    Serial.println("WiFI_info  : Connecting WiFi...");
-    if(wifiMulti.run() == WL_CONNECTED){
-        WiFi.setSleep(false);
-        return true;
-    }else{
-        Serial.printf("WiFi credentials are not correct\n");
-        return false;  // can't connect to any network
-    }
-}
-*/
+
 /***********************************************************************************************************************
 *                                                    A U D I O                                                        *
 ***********************************************************************************************************************/
 void connecttohost(const char* host){
-    _f_isWebConnected = audioConnecttohost(host);
+    String h= String(host);
+    if(h.startsWith("https")) {h.replace("https", "http"); }
+    _f_isWebConnected = audioConnecttohost(h.c_str());
     _f_isFSConnected = false;
 }
 void connecttoFS(const char* filename, uint32_t resumeFilePos){
@@ -1405,7 +1223,9 @@ void setup(){
     else strcpy(_prefix, "/m");
     pref.begin("MiniWebRadio", false);  // instance of preferences for defaults (tone, volume ...)
     stations.begin("Stations", false);  // instance of preferences for stations (name, url ...)
-
+    /*#ifdef __FILE_SYSTEM__
+        mountFileSystem (false); 
+    #endif*/
     SerialPrintfln("setup: Init SD card");
     SPI.begin(VS1053_SCK, VS1053_MISO, VS1053_MOSI); //SPI forVS1053 and SD
     Serial.println("setup      : Init SD card");
@@ -1681,13 +1501,11 @@ void prevStation(){
     _cur_station--;
     setStation(_cur_station);
 }
-
 void StationsItems(){
     webSrv.send("stationNr=" + String(pref.getUInt("station")));
     webSrv.send("stationURL=" + String(_stationURL));
     webSrv.send("stationName=" + _stationName_nvs);
 }
-
 void savefile(const char* fileName, uint32_t contentLength){ //save the uploadfile on SD
     char fn[256];
 
@@ -1699,8 +1517,17 @@ void savefile(const char* fileName, uint32_t contentLength){ //save the uploadfi
         if(webSrv.uploadB64image(SD_MMC, UTF8toASCII(fn), contentLength)){
             SerialPrintfln("save image %s to SD card was successfully", fn);
             webSrv.reply("OK");
+            UDP.endPacket();
+            vTaskDelay(50);
+            UDP.beginPacket(Display, UDP_port); //open
+            UDP.printf("FTP.SD()"); //make sure FTP is on SD
+            UDP.endPacket();
+            vTaskDelay(100);
+            char * fn2;
+            fn2=const_cast<char *>(UTF8toASCII(fn));
+            ftpPut(fn2, fn2, const_cast<char *>("SDFTPpwd"), const_cast<char *>("SDFTP"), 21, const_cast<char *>(Display));
         }
-        else webSrv.reply("failure");
+        else {webSrv.reply("failure");}
     }
     else{
         if(!startsWith(fileName, "/")){
@@ -1717,12 +1544,6 @@ void savefile(const char* fileName, uint32_t contentLength){ //save the uploadfi
         else webSrv.reply("failure");
         if(strcmp(fn, "/stations.csv") == 0) saveStationsToNVS();
     }
-    UDP.endPacket();
-    vTaskDelay(50);
-    UDP.beginPacket(Display, UDP_port); //open
-    UDP.printf("FTP.SD()"); //make sure FTP is on SD
-    UDP.endPacket();
-    //TODO    ftpPut(fn, fn, "SDFTPpwd", "SDFTP", 21, Display);
 }
 String setTone(){ // vs1053
     uint8_t ha =pref.getUShort("toneha");
@@ -1734,7 +1555,6 @@ String setTone(){ // vs1053
     String tone = String(_chbuf);
     return tone;
 }
-
 String setI2STone(){
     int8_t LP = pref.getShort("toneLP");
     int8_t BP = pref.getShort("toneBP");
@@ -1744,7 +1564,6 @@ String setI2STone(){
     String tone = String(_chbuf);
     return tone;
 }
-
 void audiotrack(const char* fileName, uint32_t resumeFilePos){
     char* path = (char*)malloc(strlen(fileName) + 20);
     strcpy(path, "/audiofiles/");

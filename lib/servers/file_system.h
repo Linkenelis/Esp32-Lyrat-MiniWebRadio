@@ -27,9 +27,10 @@
     // choose file system (it must correspond to Tools | Partition scheme setting)
           #define FILE_SYSTEM_FAT      1   
           #define FILE_SYSTEM_LITTLEFS 2
+          #define FILE_SYSTEM_SD_MMC   3
     // one of the above
     #ifndef FILE_SYSTEM
-      #define FILE_SYSTEM FILE_SYSTEM_FAT // by default
+      #define FILE_SYSTEM FILE_SYSTEM_SD_MMC // by default
     #endif
 
     #if FILE_SYSTEM == FILE_SYSTEM_FAT
@@ -42,12 +43,17 @@
       #define fileSystem LittleFS
       //#pragma message "Compiling file_system.h for LittleFS file system"
     #endif
+    #if FILE_SYSTEM == FILE_SYSTEM_SD_MMC
+      #include <LittleFS.h>
+      #define fileSystem SD_MMC
+      //#pragma message "Compiling file_system.h for LittleFS file system"
+    #endif
 
 
     // ----- functions and variables in this modul -----
 
     #define FILE_PATH_MAX_LENGTH (256 - 1) // the number of characters of longest full file path on FAT (not counting closing 0)
-    bool __fileSystemMounted__ = false;
+    bool __fileSystemMounted__ = true;
 
     bool mountFileSystem (bool);    
     bool readConfigurationFile (char *, size_t, char *);
@@ -74,21 +80,15 @@
     bool mountFileSystem (bool formatIfUnformatted) { 
       __fileSystemMounted__ = false;
       
-      if (fileSystem.begin (false)) {
+      if (fileSystem.begin("/sdcard", true)) {
         __fileSystemMounted__ = true;
       } else {
         if (formatIfUnformatted) {
           Serial.printf ("[%10lu] [file system] formatting, please wait ...\n", millis ());
-          if (fileSystem.format ()) {
-            dmesg ("[file system] formatted.");
-            if (fileSystem.begin (false)) {
-              __fileSystemMounted__ = true;
-            }
-          } else {
+        } else {
             dmesg ("[file system] formatting failed.");
           }
         }
-      }
   
       if (__fileSystemMounted__) dmesg ("[file system] mounted."); else dmesg ("[file system] failed to mount.");
       return __fileSystemMounted__;
