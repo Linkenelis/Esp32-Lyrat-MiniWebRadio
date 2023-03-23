@@ -1,5 +1,6 @@
 # Schreibfaul's ESP32-MiniWebRadio V2 adapted to Lyrat (es8388) and Remote TFT-e_SPI with some additions.
 Remote TFT-e_SPI found here https://github.com/Linkenelis/Remote-TFT_eSPI
+
 BT not functional with remote TFT (ESP32 WiFi and BT not at same time).
 
 ![Display](https://github.com/Linkenelis/Remote-TFT_eSPI/blob/main/Photo/Front.jpg)
