@@ -568,7 +568,7 @@ const char index_html[] PROGMEM = R"=====(
         <img id="Mute" src="SD/png/Mute_Green.png" alt="Mute"
                           onmousedown="this.src='SD/png/Mute_Yellow.png'"
                           ontouchstart="this.src='SD/png/Mute_Yellow.png'"
-                          onclick="httpGet('mute', 1)" />
+                          onclick="httpGet('setmute', 1)" />
       </div>
 
     </div>
@@ -654,8 +654,8 @@ const char index_html[] PROGMEM = R"=====(
         <img src="SD/png/StopGreen.png" alt="Stop"
                           onmousedown="this.src='SD/png/StopYellow.png'"
                           ontouchstart="this.src='SD/png/StopYellow.png'"
-                          onmouseup="this.src='SD/png/StopGreen.png';  socket.send('stop');"
-                          ontouchend="this.src='SD/png/StopGreen.png'; socket.send('stop');" />
+                          onmouseup="this.src='SD/png/StopGreen.png';  socket.send('stopfile');"
+                          ontouchend="this.src='SD/png/StopGreen.png'; socket.send('stopfile');" />
         <img src="SD/png/PlayGreen.png" alt="Play"
                           onmousedown="this.src='SD/png/PlayYellow.png'"
                           ontouchstart="this.src='SD/png/PlayYellow.png'"
@@ -671,10 +671,10 @@ const char index_html[] PROGMEM = R"=====(
                           ontouchstart="this.src='SD/png/RightArrowYellow.png'"
                           onmouseup="this.src='SD/png/RightArrowGreen.png';  socket.send('next_track');"
                           ontouchend="this.src='SD/png/RightArrowGreen.png'; socket.send('next_track');" />
-        <img id="Shuffle" src="SD/png/ShuffleGreen.png" alt="Shuffle"
+        <img id="shuffle_play" src="SD/png/ShuffleGreen.png" alt="ShufflePlay"
                           onmousedown="this.src='SD/png/ShuffleYellow.png'"
                           ontouchstart="this.src='SD/png/ShuffleYellow.png'"
-                          onclick="httpGet('shuffle', 1)" />
+                          onclick="httpGet('shuffle_play', 1)" />
         <img src="SD/png/ListGreen.png" alt="New Tracks"
                           onmousedown="this.src='SD/png/ListYellow.png'"
                           ontouchstart="this.src='SD/png/ListYellow.png'"
@@ -685,6 +685,26 @@ const char index_html[] PROGMEM = R"=====(
       <br><br>
       <input type="text" class="boxstyle" style="width: calc(100% - 8px);" id="resultstr3" placeholder="Waiting for a command...."> <br>
       <br><br>
+              <div style="flex: 0 0 calc(100% - 0px);">
+            <select class="boxstyle" style="width: 100%;" onchange="selectserver(this)" id="server">
+                <option value="-1">Select a DLNA Server here</option>
+            </select>
+            <select class="boxstyle" style="width: 100%; margin-top: 5px;" onchange="select_l1(this)" id="level1">
+                 <option value="-1"> </option>
+            </select>
+            <select class="boxstyle" style="width: 100%; margin-top: 5px;" onchange="select_l2(this)" id="level2">
+                <option value="-1"> </option>
+            </select>
+            <select class="boxstyle" style="width: 100%; margin-top: 5px;" onchange="select_l3(this)" id="level3">
+                <option value="-1"> </option>
+            </select>
+            <select class="boxstyle" style="width: 100%; margin-top: 5px;" onchange="select_l4(this)" id="level4">
+                <option value="-1"> </option>
+            </select>
+            <select class="boxstyle" style="width: 100%; margin-top: 5px;" onchange="select_l5(this)" id="level5">
+                <option value="-1"> </option>
+            </select>
+        </div>
       </center>
   </div>
   <!--==============================================================================================-->
@@ -911,8 +931,8 @@ function connect() {
       case "mute":            if(val == '1') document.getElementById('Mute').src = 'SD/png/Mute_Red.png'
                               if(val == '0') document.getElementById('Mute').src = 'SD/png/Mute_Green.png'
                               break
-      case "shuffle":         if(val == '1') document.getElementById('Shuffle').src = 'SD/png/ShuffleYellow.png'
-                              if(val == '0') document.getElementById('Shuffle').src = 'SD/png/ShuffleGreen.png'
+      case "shuffle_play":    if(val == '1') document.getElementById('shuffle_play').src = 'SD/png/ShuffleYellow.png'
+                              if(val == '0') document.getElementById('shuffle_play').src = 'SD/png/ShuffleGreen.png'
                               break
       case "stationNr":       document.getElementById('preset').selectedIndex = Number(val)
                               break
@@ -961,6 +981,37 @@ function connect() {
                                                 document.getElementById('div-tone-h').style.display = 'none';
                                                 document.getElementById('div-tone-s').style.display = 'block';
                                                 console.log("audioI2S");}
+                              break
+      case  "volume":         resultstr1.value = "Volume is now " + val;
+                              break
+      case  "audiotrack":     resultstr3.value = "Audiofile is " + val;
+                              break
+
+      case  "stopfile":       resultstr3.value = val;
+                              break
+
+      case  "resumefile":     resultstr3.value = val;
+                              break
+
+      case  "timeAnnouncement": console.log("timeAnnouncement=" + val)
+                              if(val == '0') document.getElementById('chk_timeSpeech').checked = false;
+                              if(val == '1') document.getElementById('chk_timeSpeech').checked = true;
+                              break
+
+      case "clearDLNA":       clearDLNAServerList()
+                              break
+
+      case "DLNA_Names":      addDLNAServer(val) // add to Serverlist
+                              break
+      case "Level1":          show_DLNA_Content(val, 1)
+                              break
+      case "Level2":          show_DLNA_Content(val, 2)
+                              break
+      case "Level3":          show_DLNA_Content(val, 3)
+                              break
+      case "Level4":          show_DLNA_Content(val, 4)
+                              break
+      case "Level5":          show_DLNA_Content(val, 5)
                               break
       default:                console.log('unknown message', msg, val)
     }
@@ -1056,6 +1107,7 @@ function showTab3 () {
   getmute()
   socket.send("getshuffle")
   socket.send("audiolist") // Now get the audio file list from SD
+  socket.send('DLNA_getServer')
 }
 
 function showTab4 () {
@@ -1103,6 +1155,110 @@ function uploadTextFile (fileName, content) {
   }
   xhr.send(fd) // send
 }
+
+// ----------------------------------- DLNA ------------------------------------
+function clearDLNAServerList(){
+    console.log('clear DLNA server list')
+    var select
+    select = document.getElementById('server')
+    select.options.length = 0;
+    var option = new Option("Select a DLNA server here")
+    select.appendChild(option);
+
+    select = document.getElementById('level1')
+    select.options.length = 0;
+    select = document.getElementById('level2')
+    select.options.length = 0;
+    select = document.getElementById('level3')
+    select.options.length = 0;
+    select = document.getElementById('level4')
+    select.options.length = 0;
+    select = document.getElementById('level5')
+    select.options.length = 0;
+}
+
+function addDLNAServer(val){
+    var server = val.split(",")
+    var select = document.getElementById('server')
+    var option = new Option(server[0], server[1]); // e.g. "Wolles-FRITZBOX Mediaserver,1"  (friendlyName, ServerIdx)
+    console.log(server[0], server[1]);
+    select.appendChild(option);
+}
+function show_DLNA_Content(val, level){
+    var select
+    if(level == 1) select = document.getElementById('level1')
+    if(level == 2) select = document.getElementById('level2')
+    if(level == 3) select = document.getElementById('level3')
+    if(level == 4) select = document.getElementById('level4')
+    if(level == 5) select = document.getElementById('level5')
+    if(select.options.length == 0){
+        var option = new Option("Select level " + level.toString())
+        select.appendChild(option);
+    }
+    content = JSON.parse(val)
+    var isDir = content[0].isDir
+    var n
+    var c
+    if(isDir){
+        n = content[0].name.concat('\xa0\xa0', '\(' + content[0].size + '\)'); // more than one space
+        c = 'D=' + content[0].id // is directory
+    }
+    else{
+        n = content[0].name + '\xa0\xa0' + content[0].size;
+        c = 'F=' + content[0].id // is file, id is uri
+    }
+    if(content[0].isAudio){
+        var option = new Option(n, c); // e.g.
+        option.style.color = "black"
+    }
+    else{
+        var option = new Option(n); // e.g.
+        option.style.color = "red"
+    }
+    console.log(n, c);
+    select.appendChild(option);
+}
+function selectserver (presctrl) { // preset, select a server, root, level0
+    socket.send('DLNA_getContent0=' + presctrl.value)
+    select = document.getElementById('level1'); select.options.length = 0; // clear next level
+    select = document.getElementById('level2'); select.options.length = 0;
+    select = document.getElementById('level3'); select.options.length = 0;
+    select = document.getElementById('level4'); select.options.length = 0;
+    select = document.getElementById('level5'); select.options.length = 0;
+    console.log('DLNA_getContent0=' + presctrl.value)
+}
+function select_l1 (presctrl) { // preset, select root
+    socket.send('DLNA_getContent1=' + presctrl.value)
+    select = document.getElementById('level2'); select.options.length = 0; // clear next level
+    select = document.getElementById('level3'); select.options.length = 0;
+    select = document.getElementById('level4'); select.options.length = 0;
+    select = document.getElementById('level5'); select.options.length = 0;
+    console.log('DLNA_getContent1=' + presctrl.value)
+}
+function select_l2 (presctrl) { // preset, select level 1
+    socket.send('DLNA_getContent2=' + presctrl.value)
+    select = document.getElementById('level3'); select.options.length = 0;
+    select = document.getElementById('level4'); select.options.length = 0;
+    select = document.getElementById('level5'); select.options.length = 0;
+    console.log('DLNA_getContent2=' + presctrl.value)
+}
+function select_l3 (presctrl) { // preset, select level 2
+    socket.send('DLNA_getContent3=' + presctrl.value)
+    select = document.getElementById('level4'); select.options.length = 0;
+    select = document.getElementById('level5'); select.options.length = 0;
+    console.log('DLNA_getContent3=' + presctrl.value)
+ }
+ function select_l4 (presctrl) { // preset, select level 3
+    socket.send('DLNA_getContent4=' + presctrl.value)
+    select = document.getElementById('level5'); select.options.length = 0;
+    console.log('DLNA_getContent4=' + presctrl.value)
+ }
+ function select_l5 (presctrl) { // preset, select level 4
+    socket.send('DLNA_getContent5=' + presctrl.value)
+    console.log('DLNA_getContent5=' + presctrl.value)
+ }
+
+
 
 // ----------------------------------- TAB RADIO ------------------------------------
 
@@ -1177,14 +1333,14 @@ function httpGet (theReq, nr) { // universal request prev, next, vol,  mute...
           if (xhr.responseText.endsWith('on\n')) {
             document.getElementById('Mute').src = 'SD/png/Mute_Red.png'
           } 
-        } else if (xhr.responseText.startsWith('Shuffle')) {
+        } else if (xhr.responseText.startsWith('shuffle_play')) {
           console.log(xhr.responseText)
           resultstr1.value = xhr.responseText // all other
           if (xhr.responseText.endsWith('off\n')) {
-            document.getElementById('Shuffle').src = 'SD/png/ShuffleGreen.png'
+            document.getElementById('shuffle_play').src = 'SD/png/ShuffleGreen.png'
           }
           if (xhr.responseText.endsWith('on\n')) {
-            document.getElementById('Shuffle').src = 'SD/png/ShuffleYellow.png'
+            document.getElementById('shuffle_play').src = 'SD/png/ShuffleYellow.png'
           }
         } else if (theReq === 'mute' || theReq.startsWith('upvolume') || theReq.startsWith('Set Volume')) {
           resultstr1.value = xhr.responseText
@@ -1762,9 +1918,10 @@ function trackreq (presctrl) { // Audio Player: select audio title from track li
 
 function getAudioFileList(val){
   console.log(val)
+  content =JSON.parse(val)
   var select = document.getElementById('seltrack')
   select.options.length = 0;
-  var fileNames = val.split(";")
+  var fileNames = val.split(",")
   for (i = -1; i < (fileNames.length); i++) {
     opt = document.createElement('OPTION')
     if(i == -1){

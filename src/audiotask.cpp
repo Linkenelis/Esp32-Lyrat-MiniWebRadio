@@ -9,6 +9,7 @@
 
 #define DECODER         1                               // (0)VS1053 , (1)SW DECODER DAC via I2S
 
+
 #if DECODER == 0
     #include "vs1053_ext.h"     // see my repository at github "ESP32-vs1053_ext"
     VS1053 vs1053(VS1053_CS, VS1053_DCS, VS1053_DREQ, VSPI, VS1053_MOSI, VS1053_MISO, VS1053_SCK);
@@ -18,7 +19,7 @@
     #include "Audio.h"     // see my repository at github "ESP32-audioI2S"
     #include "ES8388.h"
     Audio audio;
-    ES8388 es;
+    ES8388 es(18, 23, 400000);
 #endif
 
 /***********************************************************************************************************************
@@ -243,26 +244,47 @@ void audioTask(void *parameter) {
     struct audioMessage audioRxTaskMessage;
     struct audioMessage audioTxTaskMessage;
 
-        while (not es.begin(IIC_DATA, IIC_CLK))
+    while (not es.init())
     {
         Serial.printf("Failed!\n");
         delay(1000);
     }
     Serial.printf("OK\n");
+    pinMode(19, INPUT); // HP detect
+    if (digitalRead(19)) {
+        es.outputSelect(OUT2); // speaker
+        digitalWrite(21, 1);
+    } else {
+        es.outputSelect(OUT1); // headphone
+        digitalWrite(21, 0);
+    }
+    
+    //es.outputSelect(OUTALL);
+    es.setOutputVolume(33); //max = 33
+    es.mixerSourceSelect(MIXADC, MIXADC);
+    es.mixerSourceControl(DACOUT);
+    es.DACmute(false);
+/*
+    while (not es.begin(IIC_DATA, IIC_CLK))
+    {
+        Serial.printf("Failed!\n");
+        delay(1000);
+    }
+    Serial.printf("OK\n");
+
     //set sound to on and max volume
     es.volume(ES8388::ES_MAIN, 100);
     es.volume(ES8388::ES_OUT1, 100);
     es.volume(ES8388::ES_OUT2, 100);
     es.mute(ES8388::ES_OUT1, false);
     es.mute(ES8388::ES_OUT2, false);
-    es.mute(ES8388::ES_MAIN, false);
+    es.mute(ES8388::ES_MAIN, false);*/
 
-    
-    // Disable amplifier, should be enabled when not using headphone
+    // Enable amplifier
     pinMode(GPIO_PA_EN, OUTPUT);
-    digitalWrite(GPIO_PA_EN, LOW);
+    digitalWrite(GPIO_PA_EN, HIGH);
 
-    audio.setVolume(5); // 0...21
+    audio.setVolume(10); // max=33
     audio.setPinout(I2S_BCLK, I2S_LRC, I2S_DOUT);
     audio.i2s_mclk_pin_select(I2S_MCLK);
 
@@ -326,7 +348,7 @@ void audioInit() {
     xTaskCreatePinnedToCore(
         audioTask,              /* Function to implement the task */
         "audioplay",            /* Name of the task */
-        5000,                   /* Stack size in words */
+        8000,                   /* Stack size in words */
         NULL,                   /* Task input parameter */
         2 | portPRIVILEGE_BIT,  /* Priority of the task */
         NULL,                   /* Task handle. */
@@ -343,6 +365,9 @@ audioMessage transmitReceive(audioMessage msg){
     }
     return audioRxMessage;
 }
+/*void esSetVolume(uint8_t vol){
+    es.setOutputVolume(vol); //hardware volume too
+}*/
 
 void audioSetVolume(uint8_t vol){
     audioTxMessage.cmd = SET_VOLUME;
@@ -350,6 +375,16 @@ void audioSetVolume(uint8_t vol){
     audioMessage RX = transmitReceive(audioTxMessage);
     (void)RX;
 }
+/*
+void audioSetVolume(uint8_t vol){   //use both audio and es8388 to set volume
+    es.setOutputVolume(vol);
+    if (vol==1){vol=50;} else if (vol==0){vol=0;} else {vol=100;}
+    audioTxMessage.cmd = SET_VOLUME;
+    audioTxMessage.value = vol;
+    audioMessage RX = transmitReceive(audioTxMessage);
+    (void)RX;
+    
+}*/
 
 uint8_t audioGetVolume(){
     audioTxMessage.cmd = GET_VOLUME;

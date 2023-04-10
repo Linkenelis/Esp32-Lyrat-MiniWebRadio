@@ -64,8 +64,9 @@
 #include <Ticker.h>
 #include <SPI.h>
 #include <SD_MMC.h>
-#include <SD.h>
+//#include <SD.h>
 #include <FS.h>
+#include <wire.h>
 #include <WiFi.h>
 #include <DNSServer.h>
 #include <WiFiManager.h> 
@@ -74,7 +75,8 @@
 #include "websrv.h"
 #include "rtime.h"
 #include "IR.h"
-#include "BluetoothA2DPSink.h"  //BT-In
+//#include "BluetoothA2DPSink32.h"
+//#include "BluetoothA2DPSink.h"  //BT-In
 #include "ESP32FtpServer.h"
 #include "soc/rtc_wdt.h"
 //#include "fonts/Arial22num.h"
@@ -83,6 +85,9 @@
 #include "soc/timer_group_struct.h"
 #include "soc/timer_group_reg.h"
 #include "ssl_client.h"
+#include "SoapESP32.h"
+#include "Arduino_JSON.h"
+
 
 #define SerialPrintfln(...) {xSemaphoreTake(mutex_rtc, portMAX_DELAY); \
                             Serial.printf("%s ", rtc.gettime_s()); \
@@ -158,6 +163,12 @@ void stopSong();
 void tp_released();
 void tp_pressed(uint16_t x, uint16_t y);
 void UDPsendPacket(void);
+void IRAM_ATTR headphoneDetect();
+int DLNA_setCurrentServer(String serverName);
+void DLNA_showServer();
+void DLNA_browseServer(String objectId, uint8_t level);
+void DLNA_getFileItems(String uri);
+void DLNA_showContent(String objectId, uint8_t level);
 
 
 // //prototypes (audiotask.cpp)
@@ -166,6 +177,7 @@ void BTTask(void *parameter);
 void avrc_metadata_callback(uint8_t id, const uint8_t *text);
 void audioInit();
 void audioSetVolume(uint8_t vol);
+void esSetVolume(uint8_t vol);
 uint8_t audioGetVolume();
 boolean audioConnecttohost(const char* host);
 boolean audioConnecttoFS(const char* filename, uint32_t resumeFilePos = 0);

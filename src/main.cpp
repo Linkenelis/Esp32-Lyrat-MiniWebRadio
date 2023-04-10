@@ -24,14 +24,10 @@
 #include "common.h"
 #include "pins.h"
 
-
 #include "network.h"
-//#include "version_of_servers.h"
-//#include <netdb.h>
-//#include "dmesg_functions.h"
-//#include "perfMon.h"  
+#include "dmesg_functions.h"
 #include "file_system.h"
-//#include "time_functions.h"               // file_system.h is needed prior to #including time_functions.h if you want to store the default parameters
+#include "time_functions.h"               // file_system.h is needed prior to #including time_functions.h if you want to store the default parameters
 #include "ftpClient.h"                    // file_system.h is needed prior to #including ftpClient.h if you want to store the default parameters
 
 
@@ -78,6 +74,15 @@ boolean        _f_semaphore = false;
 boolean        _f_alarm = false;
 boolean        _f_irNumberSeen = false;
 boolean        _f_newIcyDescription = false;
+boolean        _f_newStreamTitle = false;
+boolean        _f_newCommercial = false;
+boolean        _f_volBarVisible = false;
+boolean        _f_switchToClock = false;  // jump into CLOCK mode at the next opportunity
+boolean        _f_hpChanged = false; // true, if HeadPhone is plugged or unplugged
+boolean        _f_muteIncrement = false; // if set increase Volume (from 0 to _cur_volume)
+boolean        _f_muteDecrement = false; // if set decrease Volume (from _cur_volume to 0)
+boolean        _f_timeAnnouncement = false; // time announcement every full hour
+boolean        _f_playlistEnabled = false;
 boolean        _f_loop=true;
 boolean        _BT_In=false;
 boolean         audioTask_runs=false;
@@ -91,7 +96,14 @@ String         _streamTitle = "";
 String         _filename = "";
 String         _icydescription = "";
 boolean         psRAMavail=false;
-String          _mp3Name[1000];
+
+uint           _numServers = 0;
+uint8_t        _level = 0;
+int            _currentServer = -1;
+uint32_t       _media_downloadPort = 0;
+String         _media_downloadIP = "";
+//vector<String> _names{};
+
 char timc[20]; //for digital time
 int clocktype=2;
 int previous_sec=100;
@@ -106,7 +118,7 @@ bool ButVolPlus=false;
 uint8_t nbroftracks=0;
 int previousMillis=0;
 bool mp3playall = true;        //play next mp3, after end of file when true
-bool shuffle=false;
+bool shuffle_play=false;
 String _audiotrack="";             //track from SD/mp3files/
 String artsong="";
 String connectto="";
@@ -154,7 +166,7 @@ Ticker ticker;
 //WiFiMulti wifiMulti;
 File audioFile;
 FtpServer ftpSrv;
-BluetoothA2DPSink a2dp_sink;
+//BluetoothA2DPSink a2dp_sink;
 /** Task handle of the taskhandler */
 TaskHandle_t audioTaskHandler;
 TaskHandle_t BTTaskHandler;
@@ -188,33 +200,6 @@ void IRAM_ATTR onTimer() {
   portENTER_CRITICAL_ISR(&timerMux);    //portenter and exit are needed as to block it for other processes
   interruptCounter++;
   portEXIT_CRITICAL_ISR(&timerMux); 
-}
-/*void IRAM_ATTR touched() {
-    portENTER_CRITICAL(&mux);
-    screen_touched=true;
-    portEXIT_CRITICAL(&mux);
-}*/
-/*Button Actions*/
-void REC_but(void){
-    Serial.println("Rec");
-}
-void MODE_but(void){
-     Serial.println("Mode");
-}
-void BOOT_but(void){    //boot = 02; also used in SD. Not very usable
-     Serial.println("Boot");
-}
-void IRAM_ATTR PLAY_but(void){
-     Serial.println("Play");
-}
-void IRAM_ATTR SET_but(void){
-     Serial.println("Set");
-}
-void IRAM_ATTR VOLUP_but(void){
-     Serial.println("Vol+");
-}
-void IRAM_ATTR VOLDWN_but(void){
-     Serial.println("Vol-");
 }
 
 #if TFT_CONTROLLER == 0 || TFT_CONTROLLER == 1
@@ -1182,50 +1167,11 @@ void stopSong(){
 ***********************************************************************************************************************/
 void setup(){
     mutex_rtc     = xSemaphoreCreateMutex();
-    //mutex_display = xSemaphoreCreateMutex();
-
     Serial.begin(115200);
-
-/* LyraT_buttons and specials
-#define GPIO_PA_EN    21
-#define SET           32    TP
-#define REC           36    
-#define MODE          39
-#define PLAY          33    TP
-#define VOLUP         27    TP
-#define VOLDWN        13    TP
-#define BOOT          0*/
-    pinMode(12, INPUT); // AUX detect
-    pinMode(19, INPUT); // HP detect
-    pinMode(REC, INPUT); // REC_but detect
-    pinMode(MODE, INPUT); // MODE_but detect
-    pinMode(BOOT, INPUT); // BOOT_but detect
-    pinMode(GPIO_PA_EN, INPUT);  //Amplifier
-
-/*
-    touchAttachInterrupt(PLAY, PLAY_but, 30);
-    touchAttachInterrupt(SET, SET_but, 30);
-    touchAttachInterrupt(VOLUP, VOLUP_but, 30);
-    touchAttachInterrupt(VOLDWN, VOLDWN_but, 30); //Cannot be done with 4 wire sd-card*/
-
-    //{if(digitalRead(REC)==LOW){REC_but();}if(digitalRead(MODE)==LOW){MODE_but();} but_done=true; break;}
-   // pinMode(BOOT, INPUT_PULLUP);
-  i2s_pin_config_t my_pin_config = {
-        .bck_io_num = 27,
-        .ws_io_num = 26,
-        .data_out_num = 25,
-        .data_in_num = I2S_PIN_NO_CHANGE
-  };
-  a2dp_sink.set_pin_config(my_pin_config);
-  a2dp_sink.set_avrc_metadata_callback(avrc_metadata_callback);
-  a2dp_sink.start("BTESP32MusicPlayer");
     if(TFT_CONTROLLER < 2)  strcpy(_prefix, "/s");
     else strcpy(_prefix, "/m");
     pref.begin("MiniWebRadio", false);  // instance of preferences for defaults (tone, volume ...)
     stations.begin("Stations", false);  // instance of preferences for stations (name, url ...)
-    /*#ifdef __FILE_SYSTEM__
-        mountFileSystem (false); 
-    #endif*/
     SerialPrintfln("setup: Init SD card");
     SPI.begin(VS1053_SCK, VS1053_MISO, VS1053_MOSI); //SPI forVS1053 and SD
     Serial.println("setup      : Init SD card");
@@ -1677,7 +1623,7 @@ void next_audio_tracknbr_SD(bool prevnext)  //1=next; 0=prev
         else if (ch == '\t'){    //clear track after '\t:' start looking for "\t:"
             ch = trcklst.read();    //this should be ":" after \t
             if (ch == ':'){ //yes, now we have '\t:'
-                tracknbr=tracknbr=atoi(track.c_str());  //store the number
+                tracknbr=atoi(track.c_str());  //store the number
                 track="";   //now we read the track name, so clear
             }     
         }
@@ -1739,7 +1685,7 @@ void next_track_needed(bool prevnext){  //1=next; 0=prev
         {
             String str = "";
             Serial.println("mp3 ended...");
-            if (shuffle){
+            if (shuffle_play){
                 next_track_SD(0);
             } else {
                 next_audio_tracknbr_SD(prevnext);
@@ -1801,7 +1747,7 @@ bool send_tracks_to_web(void){  //read tracklist and send is to the webpage
         ch = trcklst.read();
         if (ch == '\n') //new line'; send the track name and delete track
         {
-            //log_i("%s", track.c_str());
+            log_i("%s", track.c_str());
             webstring=webstring+track+";";
             track = "";
             if(i>35){break;}
@@ -1816,7 +1762,7 @@ bool send_tracks_to_web(void){  //read tracklist and send is to the webpage
         else track += ch;
         if(track=="/audiofiles/"){track="";} //clear to have name (or path) after /audiofiles/
     }
-    //log_i("%s", webstring.c_str());
+    log_i("%s", webstring.c_str());
     webSrv.send((const char*)webstring.c_str());
     return true;
 }
@@ -2000,7 +1946,7 @@ void changeState(int state){
             _pressBtn[2] = "/Buttons/BTinYellow.jpg";               _releaseBtn[2] = "/Buttons/BTinGreen.jpg";
             _pressBtn[3] = "/Buttons/Button_Previous_Yellow.jpg";   _releaseBtn[3] = "/Buttons/Button_Previous_Green.jpg";
             _pressBtn[4] = "/Buttons/Button_Next_Yellow.jpg";       _releaseBtn[4] = "/Buttons/Button_Next_Green.jpg";
-            _pressBtn[5] = shuffle?"/Buttons/Shuffle_Yellow.jpg":"/Buttons/Shuffle_Green.jpg";      _releaseBtn[5] = _pressBtn[5];
+            _pressBtn[5] = shuffle_play?"/Buttons/Shuffle_Yellow.jpg":"/Buttons/Shuffle_Green.jpg";      _releaseBtn[5] = _pressBtn[5];
             _pressBtn[6] = "/Buttons/OK_Yellow.jpg";                _releaseBtn[6] = "/Buttons/OK_Green.jpg";
             //for(int i = 0; i < 5 ; i++) {drawImage(_releaseBtn[i], i * _winButton.w, _winButton.y);}
             for(int i = 0; i < 7 ; i++) 
@@ -2529,7 +2475,7 @@ void changeBtn_released(uint8_t btnNr){
 
     }
     if(_state == PLAYER){
-        if(shuffle)  _releaseBtn[5] = "/Buttons/Shuffle_Yellow.jpg";
+        if(shuffle_play)  _releaseBtn[5] = "/Buttons/Shuffle_Yellow.jpg";
         else         _releaseBtn[5] = "/Buttons/Shuffle_Green.jpg";
     }
     if(_state == CLOCKico){
@@ -2700,7 +2646,7 @@ void tp_released(){
                     if(setAudioFolder("/audiofiles")) chptr = listAudioFile();
                     if(chptr) strcpy(_afn, chptr);
                     showFileName(_afn); webSrv.send("StatePlayer"); break;
-        case  2:    if(_BT_In) {a2dp_sink.end(false); _BT_In=false; wifi_conn();} else {a2dp_sink.start("BTESP32MusicPlayer");_BT_In=true;} break;         //BT_in
+        //case  2:    if(_BT_In) {a2dp_sink.end(false); _BT_In=false; wifi_conn();} else {a2dp_sink.start("BTESP32MusicPlayer");_BT_In=true;} break;         //BT_in
         case  3:    prevStation(); showFooterStaNr(); changeBtn_released(1); break;  // previousstation
         case  4:    nextStation(); showFooterStaNr(); changeBtn_released(2); break;  // nextstation
         case  5:    changeState(CLOCK); break;  //  
@@ -2743,7 +2689,7 @@ void tp_released(){
                     chptr = listAudioFile();
                     if(chptr) strcpy(_afn ,chptr);
                     showFileName(_afn); break;
-        case 45:    if(!shuffle){shuffle=true;webSrv.send("shuffle=1");}else{shuffle=false;webSrv.send("shuffle=0");} changeBtn_released(5);break; 
+        case 45:    if(!shuffle_play){shuffle_play=true;webSrv.send("shuffle_play=1");}else{shuffle_play=false;webSrv.send("shuffle_play=0");} changeBtn_released(5);break; 
         case 46:    showVolumeBar(); // ready
                     strcat(path, _afn);
                     connecttoFS((const char*) path);
@@ -2810,7 +2756,7 @@ void WEBSRV_onCommand(const String cmd, const String param, const String arg){  
     if(cmd == "gettone"){           if(DECODER) webSrv.reply(setI2STone().c_str()); else webSrv.reply(setTone().c_str()); return;}
     if(cmd == "getmute"){           webSrv.reply(String(int(_f_mute)).c_str()); return;}
     if(cmd == "getstreamtitle"){    webSrv.reply(_streamTitle.c_str());return;}
-    if(cmd == "mute"){              mute();Serial.print("main.cpp running on core "); Serial.println(xPortGetCoreID());if(_f_mute) webSrv.reply("Mute on\n");else webSrv.reply("Mute off\n");return;}
+    if(cmd == "setmute"){           mute();if(_f_mute) webSrv.reply("Mute=1\n");else webSrv.reply("Mute=0\n");return;}
     if(cmd == "toneha"){            pref.putUShort("toneha",(param.toInt()));                             // vs1053 tone
                                     webSrv.reply("Treble Gain set");
                                     setTone(); return;}
@@ -2838,8 +2784,8 @@ void WEBSRV_onCommand(const String cmd, const String param, const String arg){  
     if(cmd == "next_track")         {mp3playall=true; _f_eof=true; next_track_needed(true); webSrv.reply("OK\n"); return;}
     if(cmd == "prev_track")         {mp3playall=true; _f_eof=true; next_track_needed(false); webSrv.reply("OK\n"); return;}
     if(cmd == "audiotracknew")      {webSrv.reply("generating new tracklist...\n"); nbroftracks=0;File root = SD_MMC.open("/audiofiles");tracklist(root, 0); return;}
-    if(cmd == "shuffle")            {if(_state == PLAYER){_releaseNr=45; tp_released(); return;} else {if(shuffle) {shuffle=false; webSrv.reply("Shuffle off\n");}else{webSrv.reply("Shuffle on\n");} return;}}
-    if(cmd == "getshuffle"){        webSrv.reply(String(int(shuffle)).c_str()); return;}
+    if(cmd == "shuffle_play")       {if(_state == PLAYER){_releaseNr=45; tp_released(); return;} else {if(shuffle_play) {shuffle_play=false; webSrv.reply("shuffle_play=0\n");}else{webSrv.reply("shuffle_play=1\n");} return;}}
+    if(cmd == "getshuffle"){        webSrv.reply(String(int(shuffle_play)).c_str()); return;}
     if(cmd == "uploadfile"){        _filename = param;  return;}
     if(cmd == "upvolume"){          str = "Volume is now " + (String)upvolume(); webSrv.reply(str.c_str()); SerialPrintfln("%s", str.c_str()); return;}
     if(cmd == "downvolume"){        str = "Volume is now " + (String)downvolume(); webSrv.reply(str.c_str()); SerialPrintfln("%s", str.c_str()); return;}
@@ -2861,6 +2807,30 @@ void WEBSRV_onCommand(const String cmd, const String param, const String arg){  
     if(cmd == "resumefile"){        if(!_lastconnectedfile) webSrv.reply("nothing to resume\n");
                                     else {audiotrack(_lastconnectedfile, _resumeFilePos); webSrv.reply("OK\n");} return;}
     if(cmd == "artsong"){           webSrv.send("playing_now="+artsong); return;}
+    /*if(cmd == "get_alarmdays"){     webSrv.send("alarmdays=" + String(_alarmdays, 10)); return;}
+
+    if(cmd == "set_alarmdays"){     _alarmdays = param.toInt(); pref.putUShort("alarm_weekday", _alarmdays); return;}
+
+    if(cmd == "get_alarmtime"){     webSrv.send("alarmtime=" + String(_alarmtime, 10)); return;}
+
+    if(cmd == "set_alarmtime"){    _alarmtime = param.toInt(); pref.putUInt("alarm_time", _alarmtime); return;}
+
+    if(cmd == "get_timeAnnouncement"){ if(_f_timeAnnouncement) webSrv.send("timeAnnouncement=1");
+                                    if(  !_f_timeAnnouncement) webSrv.send("timeAnnouncement=0");
+                                    return;}
+
+    if(cmd == "set_timeAnnouncement"){ if(param == "true" ) _f_timeAnnouncement = true;
+                                    if(   param == "false") _f_timeAnnouncement = false;
+                                    pref.putBool("timeAnnouncing", _f_timeAnnouncement); return;}
+
+    if(cmd == "DLNA_getServer")  {  DLNA_showServer(); return;}
+    if(cmd == "DLNA_getContent0"){  _level = 0; DLNA_showContent(param, 0); return;}
+    if(cmd == "DLNA_getContent1"){  _level = 1; DLNA_showContent(param, 1); return;} // search for level 1 content
+    if(cmd == "DLNA_getContent2"){  _level = 2; DLNA_showContent(param, 2); return;} // search for level 2 content
+    if(cmd == "DLNA_getContent3"){  _level = 3; DLNA_showContent(param, 3); return;} // search for level 3 content
+    if(cmd == "DLNA_getContent4"){  _level = 4; DLNA_showContent(param, 4); return;} // search for level 4 content
+    if(cmd == "DLNA_getContent5"){  _level = 5; DLNA_showContent(param, 5); return;} // search for level 5 content
+*/
     if(cmd == "test"){              sprintf(_chbuf, "free heap: %u, Inbuff filled: %u, Inbuff free: %u\n", ESP.getFreeHeap(), audioInbuffFilled(), audioInbuffFree()); webSrv.reply(_chbuf); return;}
 
     log_e("unknown HTMLcommand %s", cmd.c_str());
@@ -2879,3 +2849,4 @@ void WEBSRV_onInfo(const char* info){
     // if(startsWith(info, "Command client"))return;   // suppress Command client available
     SerialPrintfln("HTML_info  : %s", info);    // infos for debug
 }
+
